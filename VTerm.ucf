@@ -10,3 +10,5 @@ NET "green<1>" LOC="p8";
 NET "green<0>" LOC="n8";
 NET "blue<1>" LOC="u4";
 NET "blue<0>" LOC="u5";
+
+NET "serrx" LOC = "u6";

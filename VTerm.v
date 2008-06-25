@@ -35,7 +35,8 @@ module VTerm(
 	output wire vs, hs,
 	output reg [2:0] red,
 	output reg [2:0] green,
-	output reg [1:0] blue
+	output reg [1:0] blue,
+	input serrx
 	);
 	
 	wire clk25;
@@ -56,16 +57,16 @@ module VTerm(
 	wire [11:0] vraddr;
 	wire [7:0] vrdata;
 	
-	reg [11:0] vwaddr = 0;
+	wire [11:0] vwaddr;
+	wire [7:0] vwdata;
+	wire vwr;
 	
 	wire odata;
 	
 	CharSet cs(cschar, csrow, csdata);
-	VideoRAM vram(clk25, vraddr, vrdata, vwaddr, 8'h41, 1);
+	VideoRAM vram(clk25, vraddr, vrdata, vwaddr, vwdata, vwr);
 	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, odata);
-	
-	always @(posedge clk25)
-		vwaddr <= vwaddr + 1;
+	SerRX rx(clk25, vwr, vwaddr, vwdata, serrx);
 	
 	always @(posedge clk25) begin
 		red <= border ? 0 : {3{odata}};
@@ -164,4 +165,62 @@ module VDisplay(
 	
 	always @(posedge pixclk)
 		data = ((xdly < 80 * 8) && (y < 25 * 8)) ? csdata[7 - xdly[2:0]] : 0;
+endmodule
+
+`define IN_CLK 25000000
+`define OUT_CLK 57600
+`define CLK_DIV (`IN_CLK / `OUT_CLK)
+
+module SerRX(
+	input pixclk,
+	output reg wr = 0,
+	output reg [11:0] waddr = 0,
+	output reg [7:0] wchar = 0,
+	input serialrx
+);
+
+	reg [15:0] rx_clkdiv = 0;
+	reg [3:0] rx_state = 4'b0000;
+	reg [7:0] rx_data_tmp;
+	
+
+	always @(posedge pixclk)
+	begin
+		if ((rx_state == 0) && (serialrx == 0) /*&& (rx_hasdata == 0)*/)		/* Kick off. */
+			rx_state <= 4'b0001;
+		else if ((rx_state != 4'b0000) && (rx_clkdiv == 0)) begin
+			if (rx_state != 4'b1010)
+				rx_state <= rx_state + 1;
+			else
+				rx_state <= 0;
+			case (rx_state)
+			4'b0001:	begin end /* Twiddle thumbs -- this is the end of the half bit. */
+			4'b0010:	rx_data_tmp[0] <= serialrx;
+			4'b0011:	rx_data_tmp[1] <= serialrx;
+			4'b0100:	rx_data_tmp[2] <= serialrx;
+			4'b0101:	rx_data_tmp[3] <= serialrx;
+			4'b0110:	rx_data_tmp[4] <= serialrx;
+			4'b0111:	rx_data_tmp[5] <= serialrx;
+			4'b1000:	rx_data_tmp[6] <= serialrx;
+			4'b1001:	rx_data_tmp[7] <= serialrx;
+			4'b1010:	if (serialrx == 1) begin
+						wr <= 1;
+						wchar <= rx_data_tmp;
+					end
+			endcase
+		end
+		
+		if (wr) begin
+			wr <= 0;
+			waddr <= waddr + 1;
+		end
+		
+		if ((rx_state == 0) && (serialrx == 0) /*&& (rx_hasdata == 0)*/)		/* Wait half a period before advancing. */
+			rx_clkdiv <= `CLK_DIV / 2 + `CLK_DIV / 4;
+		else if (rx_clkdiv == `CLK_DIV)
+			rx_clkdiv <= 0;
+		else
+			rx_clkdiv <= rx_clkdiv + 1;
+	end
+
 endmodule
