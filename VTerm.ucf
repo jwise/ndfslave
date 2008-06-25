@@ -1,0 +1,12 @@
+NET "xtal" LOC="B8" | CLOCK_DEDICATED_ROUTE = FALSE;
+
+NET "vs" LOC="u3";
+NET "hs" LOC="t4";
+NET "red<2>" LOC="r8";
+NET "red<1>" LOC="t8";
+NET "red<0>" LOC="r9";
+NET "green<2>" LOC="p6";
+NET "green<1>" LOC="p8";
+NET "green<0>" LOC="n8";
+NET "blue<1>" LOC="u4";
+NET "blue<0>" LOC="u5";
