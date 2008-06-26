@@ -54,19 +54,22 @@ module VTerm(
 	wire [2:0] csrow;
 	wire [7:0] csdata;
 	
-	wire [11:0] vraddr;
+	wire [10:0] vraddr;
 	wire [7:0] vrdata;
 	
-	wire [11:0] vwaddr;
+	wire [10:0] vwaddr;
 	wire [7:0] vwdata;
-	wire vwr;
+	wire [7:0] serdata;
+	wire vwr, serwr;
+	wire [10:0] vscroll;
 	
 	wire odata;
 	
 	CharSet cs(cschar, csrow, csdata);
-	VideoRAM vram(clk25, vraddr, vrdata, vwaddr, vwdata, vwr);
+	VideoRAM vram(clk25, vraddr + vscroll, vrdata, vwaddr, vwdata, vwr);
 	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, odata);
-	SerRX rx(clk25, vwr, vwaddr, vwdata, serrx);
+	SerRX rx(clk25, serwr, serdata, serrx);
+	RXState rxsm(clk25, vwr, vwaddr, vwdata, vscroll, serwr, serdata);
 	
 	always @(posedge clk25) begin
 		red <= border ? 0 : {3{odata}};
@@ -123,13 +126,13 @@ endmodule
 
 module VideoRAM(
 	input pixclk,
-	input [11:0] raddr,
+	input [10:0] raddr,
 	output reg [7:0] rdata,
-	input [11:0] waddr,
+	input [10:0] waddr,
 	input [7:0] wdata,
 	input wr);
 	
-	reg [7:0] ram [80*25-1 : 0];
+	reg [7:0] ram [2047 : 0];
 	
 	always @(posedge pixclk)
 		rdata <= ram[raddr];
@@ -143,7 +146,7 @@ module VDisplay(
 	input pixclk,
 	input [11:0] x,
 	input [11:0] y,
-	output wire [11:0] raddr,
+	output wire [10:0] raddr,
 	input [7:0] rchar,
 	output wire [7:0] cschar,
 	output wire [2:0] csrow,
@@ -174,7 +177,6 @@ endmodule
 module SerRX(
 	input pixclk,
 	output reg wr = 0,
-	output reg [11:0] waddr = 0,
 	output reg [7:0] wchar = 0,
 	input serialrx
 );
@@ -210,10 +212,8 @@ module SerRX(
 			endcase
 		end
 		
-		if (wr) begin
+		if (wr)
 			wr <= 0;
-			waddr <= waddr + 1;
-		end
 		
 		if ((rx_state == 0) && (serialrx == 0) /*&& (rx_hasdata == 0)*/)		/* Wait half a period before advancing. */
 			rx_clkdiv <= `CLK_DIV / 2 + `CLK_DIV / 4;
@@ -223,4 +223,77 @@ module SerRX(
 			rx_clkdiv <= rx_clkdiv + 1;
 	end
 
+endmodule
+
+module RXState(
+	input clk25,
+	output reg vwr = 0,
+	output reg [10:0] vwaddr = 0,
+	output reg [7:0] vwdata = 0,
+	output reg [10:0] vscroll = 0,
+	input serwr,
+	input [7:0] serdata);
+
+	parameter STATE_IDLE = 4'b0000;
+	parameter STATE_NEWLINE = 4'b0001;
+	parameter STATE_CLEAR = 4'b0010;
+
+	reg [3:0] state = STATE_CLEAR;
+	
+	reg [6:0] x = 0;
+	reg [4:0] y = 0;
+	
+	reg [10:0] clearstart = 0;
+	reg [10:0] clearend = 11'b11111111111;
+	
+	always @(posedge clk25)
+		case (state)
+		STATE_IDLE:	if (serwr) begin
+					if (serdata == 8'h0A) begin
+						state <= STATE_NEWLINE;
+						vwr <= 0;
+					end else if (serdata == 8'h0D) begin
+						x <= 0;
+						vwr <= 0;
+					end else if (serdata == 8'h0C) begin
+						clearstart <= 0;
+						clearend <= 11'b11111111111;
+						x <= 0;
+						y <= 0;
+						vscroll <= 0;
+						state <= STATE_CLEAR;
+					end else begin
+						vwr <= 1;
+						vwaddr <= ({y,4'b0} + {y,6'b0} + {4'h0,x}) + vscroll;
+						vwdata <= serdata;
+						if (x == 79) begin
+							x <= 0;
+							state <= STATE_NEWLINE;
+						end else 
+							x <= x + 1;
+					end
+				end
+		STATE_NEWLINE:
+			begin
+				vwr <= 0;
+				if (y == 24) begin
+					vscroll <= vscroll + 80;
+					clearstart <= (25 * 80) + vscroll;
+					clearend <= (26*80) + vscroll;
+					state <= STATE_CLEAR;
+				end else begin
+					y <= y + 1;
+					state <= STATE_IDLE;
+				end
+			end
+		STATE_CLEAR:
+			begin
+				vwr <= 1;
+				vwaddr <= clearstart;
+				vwdata <= 8'h20;
+				clearstart <= clearstart + 1;
+				if (clearstart == clearend)
+					state <= STATE_IDLE;
+			end
+		endcase
 endmodule
