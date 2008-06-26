@@ -66,12 +66,16 @@ module VTerm(
 	
 	wire odata;
 	
+	wire [7:0] sertxdata;
+	wire sertxwr;
+	
 	CharSet cs(cschar, csrow, csdata);
 	VideoRAM vram(clk25, vraddr + vscroll, vrdata, vwaddr, vwdata, vwr);
 	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, odata);
 	SerRX rx(clk25, serwr, serdata, serrx);
-	SerTX tx(clk25, 0, 0, sertx);
+	SerTX tx(clk25, sertxwr, sertxdata, sertx);
 	RXState rxsm(clk25, vwr, vwaddr, vwdata, vscroll, serwr, serdata);
+	PS2 ps2(clk25, ps2c, ps2d, sertxwr, sertxdata);
 	
 	always @(posedge clk25) begin
 		red <= border ? 0 : {3{odata}};
@@ -339,4 +343,117 @@ module RXState(
 					state <= STATE_IDLE;
 			end
 		endcase
+endmodule
+
+module PS2(
+	input pixclk,
+	input inclk,
+	input indata,
+	output reg wr,
+	output reg [7:0] data
+	);
+
+	reg [3:0] bitcount = 0;
+	reg [7:0] key = 0;
+	reg keyarrow = 0, keyup = 0, parity = 0;
+
+	
+	/* Clock debouncing */
+	reg lastinclk = 0;
+	reg [6:0] debounce = 0;
+	reg fixedclk = 0;
+	reg [11:0] resetcountdown = 0;
+	
+	reg nd = 0;
+	reg lastnd = 0;
+	
+	always @(posedge pixclk) begin
+		if (inclk != lastinclk) begin
+			lastinclk <= inclk;
+			debounce <= 1;
+			resetcountdown <= 12'b111111111111;
+		end else if (debounce == 0) begin
+			fixedclk <= inclk;
+			resetcountdown <= resetcountdown - 1;
+		end else
+			debounce <= debounce + 1;
+		
+		if (nd ^ lastnd) begin
+			lastnd <= nd;
+			wr <= 1;
+		end else
+			wr <= 0;
+	end
+
+	always @(negedge fixedclk) begin
+		if (resetcountdown == 0)
+			bitcount <= 0;
+		else if (bitcount == 10) begin
+			bitcount <= 0;
+			if(parity != (^ key)) begin
+				if(keyarrow) begin
+					keyarrow <= 0;
+					case(key)
+						8'hF0: keyup <= 1;
+					endcase
+				end
+				else begin
+					if(keyup) begin
+						keyup <= 0;
+						// handle this? I don't fucking know
+					end
+					else begin
+						case(key)
+							8'hE0: keyarrow <= 1;	// handle these? I don't fucking know
+							8'hF0: keyup <= 1;
+							8'h1C: begin nd <= ~nd; data <= 8'h41; end
+							8'h32: begin nd <= ~nd; data <= 8'h42; end
+							8'h21: begin nd <= ~nd; data <= 8'h43; end
+							8'h23: begin nd <= ~nd; data <= 8'h44; end
+							8'h24: begin nd <= ~nd; data <= 8'h45; end
+							8'h2B: begin nd <= ~nd; data <= 8'h46; end
+							8'h34: begin nd <= ~nd; data <= 8'h47; end
+							8'h33: begin nd <= ~nd; data <= 8'h48; end
+							8'h43: begin nd <= ~nd; data <= 8'h49; end
+							8'h3B: begin nd <= ~nd; data <= 8'h4A; end
+							8'h42: begin nd <= ~nd; data <= 8'h4B; end
+							8'h4B: begin nd <= ~nd; data <= 8'h4C; end
+							8'h3A: begin nd <= ~nd; data <= 8'h4D; end
+							8'h31: begin nd <= ~nd; data <= 8'h4E; end
+							8'h44: begin nd <= ~nd; data <= 8'h4F; end
+							8'h4D: begin nd <= ~nd; data <= 8'h50; end
+							8'h15: begin nd <= ~nd; data <= 8'h51; end
+							8'h2D: begin nd <= ~nd; data <= 8'h52; end
+							8'h1B: begin nd <= ~nd; data <= 8'h53; end
+							8'h2C: begin nd <= ~nd; data <= 8'h54; end
+							8'h3C: begin nd <= ~nd; data <= 8'h55; end
+							8'h2A: begin nd <= ~nd; data <= 8'h56; end
+							8'h1D: begin nd <= ~nd; data <= 8'h57; end
+							8'h22: begin nd <= ~nd; data <= 8'h58; end
+							8'h35: begin nd <= ~nd; data <= 8'h59; end
+							8'h1A: begin nd <= ~nd; data <= 8'h60; end
+						endcase
+					end
+				end
+			end
+			else begin
+				keyarrow <= 0;
+				keyup <= 0;
+			end
+		end else
+			bitcount <= bitcount + 1;
+
+		case(bitcount)
+			1: key[0] <= indata;
+			2: key[1] <= indata;
+			3: key[2] <= indata;
+			4: key[3] <= indata;
+			5: key[4] <= indata;
+			6: key[5] <= indata;
+			7: key[6] <= indata;
+			8: key[7] <= indata;
+			9: parity <= indata;
+		endcase
+	end
+
 endmodule
