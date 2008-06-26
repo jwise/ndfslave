@@ -36,8 +36,9 @@ module VTerm(
 	output reg [2:0] red,
 	output reg [2:0] green,
 	output reg [1:0] blue,
-	input serrx
-	);
+	input serrx,
+	output sertx,
+	input ps2c, ps2d);
 	
 	wire clk25;
 
@@ -69,6 +70,7 @@ module VTerm(
 	VideoRAM vram(clk25, vraddr + vscroll, vrdata, vwaddr, vwdata, vwr);
 	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, odata);
 	SerRX rx(clk25, serwr, serdata, serrx);
+	SerTX tx(clk25, 0, 0, sertx);
 	RXState rxsm(clk25, vwr, vwaddr, vwdata, vscroll, serwr, serdata);
 	
 	always @(posedge clk25) begin
@@ -151,8 +153,7 @@ module VDisplay(
 	output wire [7:0] cschar,
 	output wire [2:0] csrow,
 	input [7:0] csdata,
-	output reg data
-	);
+	output reg data);
 
 	wire [7:0] col = x[11:3];
 	wire [5:0] row = y[9:3];
@@ -178,8 +179,7 @@ module SerRX(
 	input pixclk,
 	output reg wr = 0,
 	output reg [7:0] wchar = 0,
-	input serialrx
-);
+	input serialrx);
 
 	reg [15:0] rx_clkdiv = 0;
 	reg [3:0] rx_state = 4'b0000;
@@ -222,7 +222,50 @@ module SerRX(
 		else
 			rx_clkdiv <= rx_clkdiv + 1;
 	end
+endmodule
 
+module SerTX(
+	input pixclk,
+	input wr,
+	input [7:0] char,
+	output reg serial = 1);
+	
+	reg [7:0] tx_data = 0;
+	reg [15:0] tx_clkdiv = 0;
+	reg [3:0] tx_state = 4'b0000;
+	reg tx_busy = 0;
+	wire tx_newdata = wr && !tx_busy;
+
+	always @(posedge pixclk)
+	begin
+		if(tx_newdata) begin
+			tx_data <= char;
+			tx_state <= 4'b0000;
+			tx_busy <= 1;
+		end else if (tx_clkdiv == 0) begin
+			tx_state <= tx_state + 1;
+			if (tx_busy)
+				case (tx_state)
+				4'b0000: serial <= 0;
+				4'b0001: serial <= tx_data[0];
+				4'b0010: serial <= tx_data[1];
+				4'b0011: serial <= tx_data[2];
+				4'b0100: serial <= tx_data[3];
+				4'b0101: serial <= tx_data[4];
+				4'b0110: serial <= tx_data[5];
+				4'b0111: serial <= tx_data[6];
+				4'b1000: serial <= tx_data[7];
+				4'b1001: serial <= 1;
+				4'b1010: tx_busy <= 0;
+				default: $stop;
+				endcase
+		end
+		
+		if(tx_newdata || (tx_clkdiv == `CLK_DIV))
+			tx_clkdiv <= 0;
+		else
+			tx_clkdiv <= tx_clkdiv + 1;
+	end
 endmodule
 
 module RXState(

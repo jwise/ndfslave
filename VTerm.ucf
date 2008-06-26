@@ -1,4 +1,4 @@
-NET "xtal" LOC="B8" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "xtal" LOC="b8" | CLOCK_DEDICATED_ROUTE = FALSE;
 
 NET "vs" LOC="u3";
 NET "hs" LOC="t4";
@@ -11,4 +11,8 @@ NET "green<0>" LOC="n8";
 NET "blue<1>" LOC="u4";
 NET "blue<0>" LOC="u5";
 
-NET "serrx" LOC = "u6";
+NET "serrx" LOC="u6";
+NET "sertx" LOC="p9";
+
+NET "ps2c" LOC="r12" | CLOCK_DEDICATED_ROUTE = FALSE;
+NET "ps2d" LOC="p11";
