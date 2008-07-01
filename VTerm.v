@@ -298,6 +298,7 @@ module RXState(
 		STATE_IDLE:	if (serwr) begin
 					if (serdata == 8'h0A) begin
 						state <= STATE_NEWLINE;
+						x <= 0;
 						vwr <= 0;
 					end else if (serdata == 8'h0D) begin
 						x <= 0;
