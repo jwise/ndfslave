@@ -1,6 +1,14 @@
 TARGET = VTerm
 VLOGS = VTerm.v
-VLOGS_ALL = $(VLOGS)
+VLOGS_ALL = $(VLOGS) scancodes.shifted.hex scancodes.unshifted.hex
+
+all: fpga_target
+
+scancodes.unshifted.hex: scancodes.txt
+	cut -f3 -d, scancodes.txt > scancodes.unshifted.hex
+
+scancodes.shifted.hex: scancodes.txt
+	cut -f4 -d, scancodes.txt > scancodes.shifted.hex
 
 BITGEN_OPTS = \
 	-w \
@@ -26,7 +34,7 @@ BITGEN_OPTS = \
 	-g DonePipe:No \
 	-g DriveDone:No
 
-all: $(TARGET).svf
+fpga_target: $(TARGET).svf
 
 $(TARGET).ngc: $(TARGET).xst $(VLOGS_ALL)
 	@mkdir -p xst/projnav.tmp

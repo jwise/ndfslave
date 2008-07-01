@@ -364,6 +364,14 @@ module PS2(
 	reg fixedclk = 0;
 	reg [11:0] resetcountdown = 0;
 	
+	reg [6:0] unshiftedrom [127:0];	initial $readmemh("scancodes.unshifted.hex", unshiftedrom);
+	reg [6:0] shiftedrom [127:0];	initial $readmemh("scancodes.shifted.hex", shiftedrom);
+	
+	reg mod_lshift = 0;
+	reg mod_rshift = 0;
+	reg mod_capslock = 0;
+	wire mod_shifted = (mod_lshift | mod_rshift) ^ mod_capslock;
+	
 	reg nd = 0;
 	reg lastnd = 0;
 	
@@ -392,46 +400,30 @@ module PS2(
 			bitcount <= 0;
 			if(parity != (^ key)) begin
 				if(keyarrow) begin
-					keyarrow <= 0;
-					case(key)
+					casex(key)
 						8'hF0: keyup <= 1;
+						8'hxx: keyarrow <= 0;
 					endcase
 				end
 				else begin
 					if(keyup) begin
 						keyup <= 0;
+						keyarrow <= 0;
+						casex (key)
+						8'h12: mod_lshift <= 0;
+						8'h59: mod_rshift <= 0;
+						endcase
 						// handle this? I don't fucking know
 					end
 					else begin
-						case(key)
+						casex(key)
 							8'hE0: keyarrow <= 1;	// handle these? I don't fucking know
 							8'hF0: keyup <= 1;
-							8'h1C: begin nd <= ~nd; data <= 8'h41; end
-							8'h32: begin nd <= ~nd; data <= 8'h42; end
-							8'h21: begin nd <= ~nd; data <= 8'h43; end
-							8'h23: begin nd <= ~nd; data <= 8'h44; end
-							8'h24: begin nd <= ~nd; data <= 8'h45; end
-							8'h2B: begin nd <= ~nd; data <= 8'h46; end
-							8'h34: begin nd <= ~nd; data <= 8'h47; end
-							8'h33: begin nd <= ~nd; data <= 8'h48; end
-							8'h43: begin nd <= ~nd; data <= 8'h49; end
-							8'h3B: begin nd <= ~nd; data <= 8'h4A; end
-							8'h42: begin nd <= ~nd; data <= 8'h4B; end
-							8'h4B: begin nd <= ~nd; data <= 8'h4C; end
-							8'h3A: begin nd <= ~nd; data <= 8'h4D; end
-							8'h31: begin nd <= ~nd; data <= 8'h4E; end
-							8'h44: begin nd <= ~nd; data <= 8'h4F; end
-							8'h4D: begin nd <= ~nd; data <= 8'h50; end
-							8'h15: begin nd <= ~nd; data <= 8'h51; end
-							8'h2D: begin nd <= ~nd; data <= 8'h52; end
-							8'h1B: begin nd <= ~nd; data <= 8'h53; end
-							8'h2C: begin nd <= ~nd; data <= 8'h54; end
-							8'h3C: begin nd <= ~nd; data <= 8'h55; end
-							8'h2A: begin nd <= ~nd; data <= 8'h56; end
-							8'h1D: begin nd <= ~nd; data <= 8'h57; end
-							8'h22: begin nd <= ~nd; data <= 8'h58; end
-							8'h35: begin nd <= ~nd; data <= 8'h59; end
-							8'h1A: begin nd <= ~nd; data <= 8'h60; end
+							8'h12: mod_lshift <= 1;
+							8'h59: mod_rshift <= 1;
+							8'h14: mod_capslock <= ~mod_capslock;
+							8'b0xxxxxxx: begin nd <= ~nd; data <= mod_shifted ? shiftedrom[key] : unshiftedrom[key]; end
+							8'b1xxxxxxx: begin /* AAAAAAASSSSSSSS */ end
 						endcase
 					end
 				end
