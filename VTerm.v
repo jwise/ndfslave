@@ -69,12 +69,15 @@ module VTerm(
 	wire [7:0] sertxdata;
 	wire sertxwr;
 	
+	wire [6:0] vcursx;
+	wire [4:0] vcursy;
+	
 	CharSet cs(cschar, csrow, csdata);
 	VideoRAM vram(clk25, vraddr + vscroll, vrdata, vwaddr, vwdata, vwr);
-	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, odata);
+	VDisplay dpy(clk25, x, y, vraddr, vrdata, cschar, csrow, csdata, vcursx, vcursy, odata);
 	SerRX rx(clk25, serwr, serdata, serrx);
 	SerTX tx(clk25, sertxwr, sertxdata, sertx);
-	RXState rxsm(clk25, vwr, vwaddr, vwdata, vscroll, serwr, serdata);
+	RXState rxsm(clk25, vwr, vwaddr, vwdata, vscroll, vcursx, vcursy, serwr, serdata);
 	PS2 ps2(clk25, ps2c, ps2d, sertxwr, sertxdata);
 	
 	always @(posedge clk25) begin
@@ -157,6 +160,8 @@ module VDisplay(
 	output wire [7:0] cschar,
 	output wire [2:0] csrow,
 	input [7:0] csdata,
+	input [6:0] cursx,
+	input [4:0] cursy,
 	output reg data);
 
 	wire [7:0] col = x[11:3];
@@ -168,11 +173,17 @@ module VDisplay(
 	assign cschar = rchar;
 	assign csrow = y[2:0];
 	
+	reg [23:0] blinktime = 0;
+	
+	always @(posedge pixclk) blinktime <= blinktime + 1;
+	
+	wire curssel = (cursx == col) && (cursy == row) && blinktime[23];
+	
 	always @(posedge pixclk)
 		xdly <= x;
 	
 	always @(posedge pixclk)
-		data = ((xdly < 80 * 8) && (y < 25 * 8)) ? csdata[7 - xdly[2:0]] : 0;
+		data = ((xdly < 80 * 8) && (y < 25 * 8)) ? (csdata[7 - xdly[2:0]] ^ curssel) : 0;
 endmodule
 
 `define IN_CLK 25000000
@@ -278,6 +289,8 @@ module RXState(
 	output reg [10:0] vwaddr = 0,
 	output reg [7:0] vwdata = 0,
 	output reg [10:0] vscroll = 0,
+	output wire [6:0] vcursx,
+	output wire [4:0] vcursy,
 	input serwr,
 	input [7:0] serdata);
 
@@ -289,6 +302,9 @@ module RXState(
 	
 	reg [6:0] x = 0;
 	reg [4:0] y = 0;
+	
+	assign vcursx = x;
+	assign vcursy = y;
 	
 	reg [10:0] clearstart = 0;
 	reg [10:0] clearend = 11'b11111111111;
@@ -310,6 +326,10 @@ module RXState(
 						y <= 0;
 						vscroll <= 0;
 						state <= STATE_CLEAR;
+					end else if (serdata == 8'h08) begin
+						if (x != 0)
+							x <= x - 1;
+						vwr <= 0;
 					end else begin
 						vwr <= 1;
 						vwaddr <= ({y,4'b0} + {y,6'b0} + {4'h0,x}) + vscroll;
