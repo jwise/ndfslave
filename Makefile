@@ -44,10 +44,10 @@ $(TARGET).ngc: $(TARGET).xst $(VLOGS_ALL)
 	xst -ifn $(TARGET).xst -ofn $(TARGET).syr
 
 $(TARGET).ngd: $(TARGET).ngc $(TARGET).ucf
-	ngdbuild -dd _ngo -uc $(TARGET).ucf -nt timestamp -p xc3s500e-fg320-5 "$(TARGET).ngc" $(TARGET).ngd
+	ngdbuild -dd _ngo -uc $(TARGET).ucf -nt timestamp -p xc3s1200e-fg320-5 "$(TARGET).ngc" $(TARGET).ngd
 
 $(TARGET)_map.ncd: $(TARGET).ngd
-	map -p xc3s500e-fg320-5 -cm area -pr off -k 4 -c 100 -o $(TARGET)_map.ncd $(TARGET).ngd $(TARGET).pcf
+	map -p xc3s1200e-fg320-5 -cm area -pr off -c 100 -o $(TARGET)_map.ncd $(TARGET).ngd $(TARGET).pcf
 
 $(TARGET).ncd: $(TARGET)_map.ncd
 	par -w -ol std -t 1 $(TARGET)_map.ncd $(TARGET).ncd $(TARGET).pcf

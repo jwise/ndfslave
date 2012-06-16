@@ -5,7 +5,7 @@ run
 -ifmt mixed
 -ofn VTerm
 -ofmt NGC
--p xc3s500e-5-fg320
+-p xc3s1200e-5-fg320
 -top VTerm
 -opt_mode Speed
 -opt_level 1
