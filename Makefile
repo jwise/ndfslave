@@ -1,5 +1,10 @@
 TARGET = VTerm
-VLOGS = VTerm.v
+VLOGS = \
+	usb1_funct/*.v \
+	usb_phy/*.v \
+	opencores/*.v \
+	VTerm.v
+
 VLOGS_ALL = $(VLOGS) scancodes.shifted.hex scancodes.unshifted.hex
 
 all: fpga_target
