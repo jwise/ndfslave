@@ -202,7 +202,9 @@ module VTerm(
 	input serrx,
 	output wire sertx,
 	
-	inout usb_dn, usb_dp
+	input epp_astb_n, epp_dstb_n, epp_wr_n,
+	output reg epp_wait_n,
+	inout [7:0] epp_dq
 	);
 	
 	wire xbuf;
@@ -214,101 +216,49 @@ module VTerm(
 	defparam dcm10.div = 10;
 	defparam dcm10.mul = 2;
 	
-	wire clk48;
-	MulDivDCM dcm48(xbuf, clk48);
-	defparam dcm48.div = 25;
-	defparam dcm48.mul = 24;
+	reg epp_astb_n_s0, epp_astb_n_s;
+	reg epp_dstb_n_s0, epp_dstb_n_s;
+	reg epp_wr_n_s0, epp_wr_n_s;
+	reg [7:0] epp_d_s0, epp_d_s;
+	reg [7:0] epp_q;
 	
-	wire usb_oe;
+	reg [7:0] epp_curad;
 	
-	wire usb_tx_dp;
-	wire usb_tx_dn;
-	assign usb_dp = usb_oe ? 1'bz : usb_tx_dp;
-	assign usb_dn = usb_oe ? 1'bz : usb_tx_dn;
+	assign epp_dq = epp_wr_n ? epp_q : 8'bzzzzzzzz;
 	
+	always @(posedge clk10) begin
+		/* synchronize in signals */
+		epp_astb_n_s0 <= epp_astb_n;
+		epp_astb_n_s <= epp_astb_n_s0;
+		
+		epp_dstb_n_s0 <= epp_dstb_n;
+		epp_dstb_n_s <= epp_dstb_n_s0;
+		
+		epp_wr_n_s0 <= epp_wr_n;
+		epp_wr_n_s <= epp_wr_n_s0;
+		
+		epp_d_s0 <= epp_dq;
+		epp_d_s <= epp_d_s0;
+		
+		if (~epp_astb_n_s && ~epp_wr_n_s)
+			epp_curad <= epp_d_s;
+	end
 	
-	reg [3:0] rst_ctr = 4'h0;
-	always @(posedge clk48)
-		if (rst_ctr != 4'hF)
-			rst_ctr <= rst_ctr + 1;
-	
-	wire ep1_re;
-	wire ep1_empty;
-	
-	reg [7:0] ep1_dpointer = 8'h0;
-	always @(posedge clk48)
-		if (ep1_re)
-			ep1_dpointer <= ep1_dpointer + 1;
-	assign ep1_empty = 0;
-	
-	usb1_core usb(
-		.clk_i(clk48),
-		.rst_i(&rst_ctr),
-		
-		.phy_tx_mode(1), /* differential mode */
-		.usb_rst(),
-		
-		.tx_dp(usb_tx_dp), .tx_dn(usb_tx_dn),
-		.tx_oe(usb_oe),
-		.rx_d(usb_dp), .rx_dp(usb_dp), .rx_dn(usb_dn),
-		
-		.dropped_frame(),
-		.misaligned_frame(),
-		.crc16_err(),
-		
-		.v_set_int(), .v_set_feature(), .wValue(), .wIndex(),
-		.vendor_data(0),
-		
-		.usb_busy(), .ep_sel(),
-		
-		.ep1_cfg(`BULK | `IN | 14'd256),
-		.ep1_din(ep1_dpointer), .ep1_dout(),
-		.ep1_we(), .ep1_re(ep1_re),
-		.ep1_empty(ep1_empty), .ep1_full(0),
-		.ep1_bf_en(0), .ep1_bf_size(0),
-		
-		.ep2_cfg(`BULK | `OUT | 14'd256),
-		.ep2_din(0), .ep2_dout(),
-		.ep2_we(), .ep2_re(),
-		.ep2_empty(0), .ep2_full(0),
-		.ep2_bf_en(0), .ep2_bf_size(0),
-		
-		.ep3_cfg(`BULK | `IN | 14'd064),
-		.ep3_din(0), .ep3_dout(),
-		.ep3_we(), .ep3_re(),
-		.ep3_empty(0), .ep3_full(0),
-		.ep3_bf_en(0), .ep3_bf_size(0),
-		
-		.ep4_cfg(`BULK | `IN | 14'd064),
-		.ep4_din(0), .ep4_dout(),
-		.ep4_we(), .ep4_re(),
-		.ep4_empty(0), .ep4_full(0),
-		.ep4_bf_en(0), .ep4_bf_size(0),
-		
-		.ep5_cfg(`BULK | `IN | 14'd064),
-		.ep5_din(0), .ep5_dout(),
-		.ep5_we(), .ep5_re(),
-		.ep5_empty(0), .ep5_full(0),
-		.ep5_bf_en(0), .ep5_bf_size(0),
-		
-		.ep6_cfg(`BULK | `IN | 14'd064),
-		.ep6_din(0), .ep6_dout(),
-		.ep6_we(), .ep6_re(),
-		.ep6_empty(0), .ep6_full(0),
-		.ep6_bf_en(0), .ep6_bf_size(0),
-		
-		.ep7_cfg(`BULK | `IN | 14'd064),
-		.ep7_din(0), .ep7_dout(),
-		.ep7_we(), .ep7_re(),
-		.ep7_empty(0), .ep7_full(0),
-		.ep7_bf_en(0), .ep7_bf_size(0)
-		);
-		
+	always @(*) begin
+		epp_wait_n = 0;
+		epp_q = 0;
+		if (~epp_astb_n_s && ~epp_wr_n_s)
+			epp_wait_n = 1;
+		if (~epp_dstb_n_s && epp_wr_n_s) begin
+			epp_wait_n = 1;
+			epp_q = ~epp_curad;
+		end
+	end
 	
 	reg [7:0] ndfsm = 8'h00;
 
 	wire [15:0] display =
-	  btns[0] ? {rst_ctr, 4'h0, ep1_dpointer} :
+	  btns[0] ? 16'h1234 :
 	  btns[1] ? 16'h4567 :
 	  btns[2] ? 16'h89AB :
 	  btns[3] ? 16'hCDEF :

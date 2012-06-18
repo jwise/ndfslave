@@ -9,6 +9,9 @@ VLOGS_ALL = $(VLOGS)
 
 all: fpga_target
 
+prog: fpga_target
+	sudo djtgcfg -d Nexys2 prog -i 0 -f $(TARGET).bit
+
 BITGEN_OPTS = \
 	-w \
 	-g DebugBitstream:No \
@@ -24,7 +27,7 @@ BITGEN_OPTS = \
 	-g UnusedPin:PullDown \
 	-g UserID:0xFFFFFFFF \
 	-g DCMShutdown:Disable \
-	-g StartUpClk:CClk \
+	-g StartUpClk:JTAGClk \
 	-g DONE_cycle:4 \
 	-g GTS_cycle:5 \
 	-g GWE_cycle:6 \
