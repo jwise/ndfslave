@@ -1,9 +1,5 @@
 TARGET = VTerm
-VLOGS = \
-	usb1_funct/*.v \
-	usb_phy/*.v \
-	opencores/*.v \
-	VTerm.v
+VLOGS = VTerm.v
 
 VLOGS_ALL = $(VLOGS)
 

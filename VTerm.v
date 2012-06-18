@@ -79,110 +79,6 @@ module Drive7Seg(
 	                         display[3:0];
 endmodule
 
-`define IN_CLK 10000000
-`define OUT_CLK 57600
-`define CLK_DIV (`IN_CLK / `OUT_CLK)
-
-module SerRX(
-	input pixclk,
-	output reg wr = 0,
-	output reg [7:0] wchar = 0,
-	input serial_raw);
-
-	reg [15:0] rx_clkdiv = 0;
-	reg [3:0] rx_state = 4'b0000;
-	reg [7:0] rx_data_tmp;
-	
-	reg serialrx_0 = 0;
-	reg serialrx = 0;
-
-	always @(posedge pixclk)
-	begin
-		/* Flop it twice. */
-		serialrx_0 <= serial_raw;
-		serialrx   <= serialrx_0;
-		
-		if ((rx_state == 0) && (serialrx == 0) /*&& (rx_hasdata == 0)*/)		/* Kick off. */
-			rx_state <= 4'b0001;
-		else if ((rx_state != 4'b0000) && (rx_clkdiv == 0)) begin
-			if (rx_state != 4'b1010)
-				rx_state <= rx_state + 1;
-			else
-				rx_state <= 0;
-			case (rx_state)
-			4'b0001:	begin end /* Twiddle thumbs -- this is the end of the half bit. */
-			4'b0010:	rx_data_tmp[0] <= serialrx;
-			4'b0011:	rx_data_tmp[1] <= serialrx;
-			4'b0100:	rx_data_tmp[2] <= serialrx;
-			4'b0101:	rx_data_tmp[3] <= serialrx;
-			4'b0110:	rx_data_tmp[4] <= serialrx;
-			4'b0111:	rx_data_tmp[5] <= serialrx;
-			4'b1000:	rx_data_tmp[6] <= serialrx;
-			4'b1001:	rx_data_tmp[7] <= serialrx;
-			4'b1010:	if (serialrx == 1) begin
-						wr <= 1;
-						wchar <= rx_data_tmp;
-					end
-			endcase
-		end
-		
-		if (wr)
-			wr <= 0;
-		
-		if ((rx_state == 0) && (serialrx == 0) /*&& (rx_hasdata == 0)*/)		/* Wait half a period before advancing. */
-			rx_clkdiv <= `CLK_DIV / 2 + `CLK_DIV / 4;
-		else if (rx_clkdiv == `CLK_DIV)
-			rx_clkdiv <= 0;
-		else
-			rx_clkdiv <= rx_clkdiv + 1;
-	end
-endmodule
-
-module SerTX(
-	input pixclk,
-	input wr,
-	input [7:0] char,
-	output reg tx_busy = 0,
-	output reg serial = 1);
-	
-	reg [7:0] tx_data = 0;
-	reg [15:0] tx_clkdiv = 0;
-	reg [3:0] tx_state = 4'b0000;
-	wire tx_newdata = wr && !tx_busy;
-
-	always @(posedge pixclk)
-	begin
-		if(tx_newdata) begin
-			tx_data <= char;
-			tx_state <= 4'b0000;
-			tx_busy <= 1;
-		end else if (tx_clkdiv == 0) begin
-			tx_state <= tx_state + 1;
-			if (tx_busy)
-				case (tx_state)
-				4'b0000: serial <= 0;
-				4'b0001: serial <= tx_data[0];
-				4'b0010: serial <= tx_data[1];
-				4'b0011: serial <= tx_data[2];
-				4'b0100: serial <= tx_data[3];
-				4'b0101: serial <= tx_data[4];
-				4'b0110: serial <= tx_data[5];
-				4'b0111: serial <= tx_data[6];
-				4'b1000: serial <= tx_data[7];
-				4'b1001: serial <= 1;
-				4'b1010: tx_busy <= 0;
-				default: $stop;
-				endcase
-		end
-		
-		if(tx_newdata || (tx_clkdiv == `CLK_DIV))
-			tx_clkdiv <= 0;
-		else
-			tx_clkdiv <= tx_clkdiv + 1;
-	end
-endmodule
-
-
 module VTerm(
 	input xtal,
 	input [3:0] btns,
@@ -198,9 +94,6 @@ module VTerm(
 	output reg ndf_wp_n,
 	
 	inout [7:0] ndf_io,
-	
-	input serrx,
-	output wire sertx,
 	
 	input epp_astb_n, epp_dstb_n, epp_wr_n,
 	output reg epp_wait_n,
@@ -224,7 +117,7 @@ module VTerm(
 	
 	reg [7:0] epp_curad;
 	
-	assign epp_dq = epp_wr_n ? epp_q : 8'bzzzzzzzz;
+	assign epp_dq = epp_wr_n_s ? epp_q : 8'bzzzzzzzz;
 	
 	always @(posedge clk10) begin
 		/* synchronize in signals */
@@ -239,20 +132,6 @@ module VTerm(
 		
 		epp_d_s0 <= epp_dq;
 		epp_d_s <= epp_d_s0;
-		
-		if (~epp_astb_n_s && ~epp_wr_n_s)
-			epp_curad <= epp_d_s;
-	end
-	
-	always @(*) begin
-		epp_wait_n = 0;
-		epp_q = 0;
-		if (~epp_astb_n_s && ~epp_wr_n_s)
-			epp_wait_n = 1;
-		if (~epp_dstb_n_s && epp_wr_n_s) begin
-			epp_wait_n = 1;
-			epp_q = ~epp_curad;
-		end
 	end
 	
 	reg [7:0] ndfsm = 8'h00;
@@ -266,20 +145,16 @@ module VTerm(
 	
 	Drive7Seg drive(clk10, display, cath, ano);
 	
-	wire rx_strobe;
-	wire [7:0] rx_data;
-	SerRX rx(clk10, rx_strobe, rx_data, serrx);
-	
-	reg tx_strobe;
-	reg [7:0] tx_data;
-	wire tx_busy;
-	SerTX tx(clk10, tx_strobe, tx_data, tx_busy, sertx);
-	
 	reg [7:0] ndfsm_next;
 	reg [7:0] ndf_io_w;
 	
-	assign ndf_io = ndf_we_n ? 8'bzzzzzzzz : ndf_io_w;
+	assign ndf_io = ndf_re_n ? ndf_io_w : 8'bzzzzzzzz;
 	
+	reg epp_wait_n_next = 0;
+	reg [7:0] epp_q_next = 0;
+	reg ndf_re_n_next;
+	reg ndf_we_n_next;
+	reg [7:0] ndf_io_w_next;
 	/* Tcls  - CLE setup
 	 * Tclh - CLE hold
 	 * Tds -- data setup
@@ -298,87 +173,103 @@ module VTerm(
 	 * FFh must be first command, wait for R/B to rise again
 	 */
 	always @(*) begin
-		ndf_io_w = 8'h00;
-		ndf_re_n = 1;
+		epp_wait_n_next = 0;
+		epp_q_next = 0;
+
+		ndf_io_w_next = 8'h99;
+		ndf_re_n_next = 1;
 		ndf_ce_n = 0;
 		ndf_cle = 0;
 		ndf_ale = 0;
-		ndf_we_n = 1;
+		ndf_we_n_next = 1;
 		ndf_wp_n = 0;
 		ndfsm_next = ndfsm;
-		tx_strobe = 0;
-		tx_data = 8'h00;
 		
 		case (ndfsm)
 		'h00:	/* Wait for a character. */
-			case ({rx_strobe, rx_data})
-			9'h141: /* 'A' -- address */
+			casex ({epp_astb_n_s, epp_dstb_n_s, epp_wr_n_s, epp_curad})
+			{3'b100, 8'h41}: /* 'A' -- address */
 				ndfsm_next = 'h02;
-			9'h143: /* 'C' -- command */
-				ndfsm_next = 'h05;
-			9'h152: /* 'R' -- read */
-				ndfsm_next = 'h08;
-			9'h142: /* 'B' -- busy */
-				ndfsm_next = 'h0A;
-			9'h150: /* 'P' -- ping */
-				ndfsm_next = 'h01;
+			{3'b100, 8'h43}: /* 'C' -- command */
+				ndfsm_next = 'h04;
+			{3'b101, 8'h44}: /* 'D' -- data */
+				ndfsm_next = 'h06;
+			{3'b101, 8'h42}: /* 'B' -- busy */
+				ndfsm_next = 'h09;
+			{3'b010, 8'hxx}:
+				epp_wait_n_next = 1;
 			endcase
 		
-		'h01:	begin /* Ping. */
-			tx_strobe = 1;
-			tx_data = 8'h41; /* A - ack */
-			if (!tx_busy) ndfsm_next = 'h00;
+		'h01:	begin /* ACK on write. */
+			epp_wait_n_next = 1;
+			if (epp_dstb_n_s) ndfsm_next = 'h00;
 			end
 		
 		/* Address */
-		'h02:	/* Wait for another character. */
-			if (rx_strobe) ndfsm_next = ndfsm + 1;
-		'h03:	begin /* Setup for address. */
-			ndf_io_w = rx_data;
+		'h02:	begin /* Setup for address. */
+			ndf_io_w_next = epp_d_s;
 			ndf_ale = 1;
-			ndf_we_n = 0;
+			ndf_we_n_next = 0;
 			ndfsm_next = ndfsm + 1;
 			end
-		'h04:	begin /* Hold for address. */
-			ndf_io_w = rx_data;
+		'h03:	begin /* Hold for address. */
+			ndf_io_w_next = epp_d_s;
 			ndf_ale = 1;
-			ndf_we_n = 1;
+			ndf_we_n_next = 1;
 			ndfsm_next = 'h01;
 			end
 		
 		/* Command */
-		'h05:	/* Wait for another character. */
-			if (rx_strobe) ndfsm_next = ndfsm + 1;
-		'h06:	begin /* Setup for command. */
-			ndf_io_w = rx_data;
+		'h04:	begin /* Setup for command. */
+			ndf_io_w_next = epp_d_s;
 			ndf_cle = 1;
-			ndf_we_n = 0;
+			ndf_we_n_next = 0;
 			ndfsm_next = ndfsm + 1;
 			end
-		'h07:	begin /* Hold for command. */
-			ndf_io_w = rx_data;
+		'h05:	begin /* Hold for command. */
+			ndf_io_w_next = epp_d_s;
 			ndf_cle = 1;
-			ndf_we_n = 1;
+			ndf_we_n_next = 1;
 			ndfsm_next = 'h01;
 			end
 		
 		/* Read */
-		'h08:	begin /* Setup for read */
-			ndf_re_n = 0;
+		'h06:	begin /* Setup for read */
+			ndf_re_n_next = 0;
+			epp_q_next = ndf_io;
 			ndfsm_next = ndfsm + 1;
 			end
-		'h09:	begin /* Read */
-			ndf_re_n = 0;
-			tx_strobe = 1;
-			tx_data = ndf_io;
-			if (!tx_busy) ndfsm_next = 'h00;
+		'h07:	begin /* Read */
+			ndf_re_n_next = 0;
+			epp_q_next = ndf_io;
+			ndfsm_next = ndfsm + 1;
+			end
+		'h08:	begin /* Read */
+			ndf_re_n_next = 0;
+			epp_q_next = ndf_io;
+			epp_wait_n_next = 1;
+			if (epp_dstb_n_s) ndfsm_next = 'h00;
 			end
 		
 		/* Busy */
-		'h0A:	/* Wait for ready */
-			if (ndf_r_b_n) ndfsm_next = 'h01;
+		'h09:	begin /* Wait for ready */
+			epp_wait_n_next = ndf_r_b_n;
+			epp_q_next = {8{ndf_r_b_n}};
+			if (epp_dstb_n_s) ndfsm_next = 'h00;
+			end
 		endcase
+		
+		
 	end
-	always @(posedge clk10)
+	always @(posedge clk10) begin
 		ndfsm <= ndfsm_next;
+		
+		ndf_re_n <= ndf_re_n_next;
+		ndf_we_n <= ndf_we_n_next;
+		ndf_io_w <= ndf_io_w_next;
+		epp_q <= epp_q_next;
+		epp_wait_n <= epp_wait_n_next;
+		if (~epp_astb_n_s && ~epp_wr_n_s)
+			epp_curad <= epp_d_s;
+	end
 endmodule
