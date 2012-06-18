@@ -5,15 +5,9 @@ VLOGS = \
 	opencores/*.v \
 	VTerm.v
 
-VLOGS_ALL = $(VLOGS) scancodes.shifted.hex scancodes.unshifted.hex
+VLOGS_ALL = $(VLOGS)
 
 all: fpga_target
-
-scancodes.unshifted.hex: scancodes.txt
-	cut -f3 -d, scancodes.txt > scancodes.unshifted.hex
-
-scancodes.shifted.hex: scancodes.txt
-	cut -f4 -d, scancodes.txt > scancodes.shifted.hex
 
 BITGEN_OPTS = \
 	-w \

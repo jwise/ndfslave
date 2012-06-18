@@ -226,43 +226,48 @@ module VTerm(
 	assign usb_dp = usb_oe ? 1'bz : usb_tx_dp;
 	assign usb_dn = usb_oe ? 1'bz : usb_tx_dn;
 	
+	
 	reg [3:0] rst_ctr = 4'h0;
 	always @(posedge clk48)
 		if (rst_ctr != 4'hF)
 			rst_ctr <= rst_ctr + 1;
 	
-	wire dropped_frame;
-	wire misaligned_frame;
-	wire crc16_err;
-	wire usb_rst;
+	wire ep1_re;
+	wire ep1_empty;
+	
+	reg [7:0] ep1_dpointer = 8'h0;
+	always @(posedge clk48)
+		if (ep1_re)
+			ep1_dpointer <= ep1_dpointer + 1;
+	assign ep1_empty = 0;
 	
 	usb1_core usb(
 		.clk_i(clk48),
 		.rst_i(&rst_ctr),
 		
 		.phy_tx_mode(1), /* differential mode */
-		.usb_rst(usb_rst),
+		.usb_rst(),
 		
 		.tx_dp(usb_tx_dp), .tx_dn(usb_tx_dn),
 		.tx_oe(usb_oe),
 		.rx_d(usb_dp), .rx_dp(usb_dp), .rx_dn(usb_dn),
 		
-		.dropped_frame(dropped_frame),
-		.misaligned_frame(misaligned_frame),
-		.crc16_err(crc16_err),
+		.dropped_frame(),
+		.misaligned_frame(),
+		.crc16_err(),
 		
 		.v_set_int(), .v_set_feature(), .wValue(), .wIndex(),
 		.vendor_data(0),
 		
 		.usb_busy(), .ep_sel(),
 		
-		.ep1_cfg(`BULK | `IN | 14'd064),
-		.ep1_din(0), .ep1_dout(),
-		.ep1_we(), .ep1_re(),
-		.ep1_empty(0), .ep1_full(0),
+		.ep1_cfg(`BULK | `IN | 14'd256),
+		.ep1_din(ep1_dpointer), .ep1_dout(),
+		.ep1_we(), .ep1_re(ep1_re),
+		.ep1_empty(ep1_empty), .ep1_full(0),
 		.ep1_bf_en(0), .ep1_bf_size(0),
 		
-		.ep2_cfg(`BULK | `IN | 14'd064),
+		.ep2_cfg(`BULK | `OUT | 14'd256),
 		.ep2_din(0), .ep2_dout(),
 		.ep2_we(), .ep2_re(),
 		.ep2_empty(0), .ep2_full(0),
@@ -303,7 +308,7 @@ module VTerm(
 	reg [7:0] ndfsm = 8'h00;
 
 	wire [15:0] display =
-	  btns[0] ? {rst_ctr, dropped_frame, misaligned_frame, crc16_err, usb_rst, usb_oe, usb_dp, usb_dn, 5'h00} :
+	  btns[0] ? {rst_ctr, 4'h0, ep1_dpointer} :
 	  btns[1] ? 16'h4567 :
 	  btns[2] ? 16'h89AB :
 	  btns[3] ? 16'hCDEF :

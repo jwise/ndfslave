@@ -97,9 +97,9 @@ always @(posedge clk)
 	   7'h14:	dout <= 8'd32;	// total data length low byte
 	   7'h15:	dout <= 8'd00;	// total data length high byte
 	   7'h16:	dout <= 8'h01;	// number of interfaces
-	   7'h17:	dout <= 8'h01;	// number of configurations
+	   7'h17:	dout <= 8'h01;	// number of configuration
 	   7'h18:	dout <= 8'h00;	// Conf. String Index
-	   7'h19:	dout <= 8'h40;	// Config. Characteristics
+	   7'h19:	dout <= 8'hC0;	// Config. Characteristics
 	   7'h1a:	dout <= 8'h00;	// Max. Power Consumption
 
 		// ====================================
@@ -122,8 +122,8 @@ always @(posedge clk)
 	   7'h25:	dout <= 8'h05;	// descriptor type
 	   7'h26:	dout <= 8'h81;	// endpoint address
 	   7'h27:	dout <= 8'h02;	// endpoint attributes
-	   7'h28:	dout <= 8'h00;	// max packet size low byte
-	   7'h29:	dout <= 8'h01;	// max packet size high byte
+	   7'h28:	dout <= 8'h10;	// max packet size low byte
+	   7'h29:	dout <= 8'h00;	// max packet size high byte
 	   7'h2a:	dout <= 8'h01;	// polling interval
 
 		// ====================================
@@ -133,8 +133,8 @@ always @(posedge clk)
 	   7'h2c:	dout <= 8'h05;	// descriptor type
 	   7'h2d:	dout <= 8'h02;	// endpoint address
 	   7'h2e:	dout <= 8'h02;	// endpoint attributes
-	   7'h2f:	dout <= 8'h00;	// max packet size low byte
-	   7'h30:	dout <= 8'h01;	// max packet size high byte
+	   7'h2f:	dout <= 8'h10;	// max packet size low byte
+	   7'h30:	dout <= 8'h00;	// max packet size high byte
 	   7'h31:	dout <= 8'h01;	// polling interval
 
 		// ====================================
