@@ -59,8 +59,12 @@ endmodule
 module Drive7Seg(
 	input clk10,
 	input [15:0] display,
+	input [3:0] alive,
 	output wire [7:0] cath,
-	output reg [3:0] ano = 4'b1110);
+	output wire [3:0] ano_out);
+	
+	reg [3:0] ano = 4'b1110;
+	assign ano_out = ano | ~alive;
 
 	reg [7:0] counter = 8'h0;
 	
@@ -87,7 +91,7 @@ module VTerm(
 	
 	input ndf_r_b_n,
 	output reg ndf_re_n,
-	output reg ndf_ce_n,
+	output reg [1:0] ndf_ce_n = 2'b11,
 	output reg ndf_cle,
 	output reg ndf_ale,
 	output reg ndf_we_n,
@@ -141,9 +145,11 @@ module VTerm(
 	  btns[1] ? 16'h4567 :
 	  btns[2] ? 16'h89AB :
 	  btns[3] ? 16'hCDEF :
-	            {ndf_io, ndfsm};
+	            {ndf_io, ndfsm[3:0], 2'b00, ~ndf_ce_n[1:0]};
+	wire [3:0] display_alive =
+	  {{2{~ndf_re_n || ~ndf_we_n}}, ndfsm != 'h00, 1'b1};
 	
-	Drive7Seg drive(clk10, display, cath, ano);
+	Drive7Seg drive(clk10, display, display_alive, cath, ano);
 	
 	reg [7:0] ndfsm_next;
 	reg [7:0] ndf_io_w;
@@ -152,9 +158,11 @@ module VTerm(
 	
 	reg epp_wait_n_next = 0;
 	reg [7:0] epp_q_next = 0;
-	reg ndf_re_n_next;
-	reg ndf_we_n_next;
-	reg [7:0] ndf_io_w_next;
+	reg ndf_re_n_next = 0;
+	reg ndf_we_n_next = 0;
+	reg [7:0] ndf_io_w_next = 0;
+	reg ce_lat_next = 0;
+	
 	/* Tcls  - CLE setup
 	 * Tclh - CLE hold
 	 * Tds -- data setup
@@ -176,17 +184,20 @@ module VTerm(
 		epp_wait_n_next = 0;
 		epp_q_next = 0;
 
-		ndf_io_w_next = 8'h99;
+		ndf_io_w_next = 8'hAA;
 		ndf_re_n_next = 1;
-		ndf_ce_n = 0;
 		ndf_cle = 0;
 		ndf_ale = 0;
 		ndf_we_n_next = 1;
 		ndf_wp_n = 0;
 		ndfsm_next = ndfsm;
+		ce_lat_next = 0;
 		
 		case (ndfsm)
-		'h00:	/* Wait for a character. */
+		'h00:	/* Wait a cycle to let the data bus settle after the initial drive fight. */
+			if (~epp_astb_n_s || ~epp_dstb_n_s)
+				ndfsm_next = 'h0B;
+		'h0B:	/* Wait for a character. */
 			casex ({epp_astb_n_s, epp_dstb_n_s, epp_wr_n_s, epp_curad})
 			{3'b100, 8'h41}: /* 'A' -- address */
 				ndfsm_next = 'h02;
@@ -196,8 +207,12 @@ module VTerm(
 				ndfsm_next = 'h06;
 			{3'b101, 8'h42}: /* 'B' -- busy */
 				ndfsm_next = 'h09;
+			{3'b100, 8'h45}: /* 'E' -- chip enable */
+				ndfsm_next = 'h0A;
 			{3'b010, 8'hxx}:
 				epp_wait_n_next = 1;
+			{3'b11x, 8'hxx}:
+				ndfsm_next = 'h00;
 			endcase
 		
 		'h01:	begin /* ACK on write. */
@@ -257,10 +272,15 @@ module VTerm(
 			epp_q_next = {8{ndf_r_b_n}};
 			if (epp_dstb_n_s) ndfsm_next = 'h00;
 			end
+		
+		/* Chip enable */
+		'h0A:	begin
+			ce_lat_next = 1;
+			ndfsm_next = 'h01;
+			end
 		endcase
-		
-		
 	end
+	
 	always @(posedge clk10) begin
 		ndfsm <= ndfsm_next;
 		
@@ -271,5 +291,7 @@ module VTerm(
 		epp_wait_n <= epp_wait_n_next;
 		if (~epp_astb_n_s && ~epp_wr_n_s)
 			epp_curad <= epp_d_s;
+		if (ce_lat_next)
+			ndf_ce_n <= epp_d_s[1:0];
 	end
 endmodule
