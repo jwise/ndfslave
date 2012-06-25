@@ -59,8 +59,8 @@ void ndf_ce(unsigned char c) {
 int main(int argc, char **argv) {
 	int ce;
 	
-	if (argc != 2) {
-		fprintf(stderr, "usage: %s devicepath\n", argv[0]);
+	if (argc != 3) {
+		fprintf(stderr, "usage: %s devicepath filename\n", argv[0]);
 		abort();
 	}
 	ndf_init(argv[1]);
@@ -101,6 +101,10 @@ int main(int argc, char **argv) {
 	
 	gettimeofday(&tv1, NULL);
 	
+	int fd;
+	
+	fd = creat(argv[2], 0644);
+	
 	int adr;
 #define BYTES_PER_ITER (2L*(8192L+640L))
 #define TOTAL 0x100000L
@@ -110,7 +114,7 @@ int main(int argc, char **argv) {
 		long usec = (tv2.tv_sec - tv1.tv_sec) * 1000000L + (tv2.tv_usec - tv1.tv_usec);
 		long remaining = (TOTAL - adr) * (long long)BYTES_PER_ITER;
 		float bps = (float)(adr*BYTES_PER_ITER*1000000.0)/(float)usec;
-		long secrem = remaining / (long long)bps;
+		long secrem = remaining / ((long long)bps + 1);
 		
 		ndf_ce(3);
 		printf("reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r", adr, TOTAL,
@@ -135,11 +139,11 @@ int main(int argc, char **argv) {
 			memset(buf, 0xAA, 1024);
 			for (i = 0; i < (8192 / 512); i++) {
 				ndf_read_many(buf, 512);
-				write(2, buf, 512);
+				write(fd, buf, 512);
 			}
 			
 			ndf_read_many(buf, 640);
-			write(2, buf, 640);
+			write(fd, buf, 640);
 		}
 	}
 	
