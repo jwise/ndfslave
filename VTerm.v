@@ -66,11 +66,11 @@ module Drive7Seg(
 	reg [3:0] ano = 4'b1110;
 	assign ano_out = ano | ~alive;
 
-	reg [7:0] counter = 8'h0;
+	reg [8:0] counter = 9'h0;
 	
 	always @(posedge clk10) begin
-		counter <= counter + 8'h1;
-		if (counter == 8'h0)
+		counter <= counter + 9'h1;
+		if (counter == 9'h0)
 			ano <= {ano[0], ano[3:1]};
 	end
 	
@@ -88,6 +88,7 @@ module VTerm(
 	input [3:0] btns,
 	output wire [7:0] cath,
 	output wire [3:0] ano,
+	output reg  led,
 	
 	input ndf_r_b_n,
 	output reg ndf_re_n,
@@ -150,6 +151,16 @@ module VTerm(
 	  {{2{~ndf_re_n || ~ndf_we_n}}, ndfsm != 'h00, 1'b1};
 	
 	Drive7Seg drive(clk10, display, display_alive, cath, ano);
+	
+	/* Flash the LED when the device is busy. */
+	reg [20:0] led_countdown = 'h0;
+	always @(posedge clk10)
+		if (led_countdown != 'h0)
+			led_countdown <= led_countdown - 1;
+		else if (led != ndf_r_b_n) begin
+			led <= ndf_r_b_n;
+			led_countdown <= led_countdown - 1;
+		end
 	
 	reg [7:0] ndfsm_next;
 	reg [7:0] ndf_io_w;

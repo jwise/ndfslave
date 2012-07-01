@@ -77,9 +77,10 @@ void ndf_cmd_read_page(unsigned int adr) {
 
 int main(int argc, char **argv) {
 	int ce;
+	int iter = 1;
 	
-	if (argc != 4) {
-		fprintf(stderr, "usage: %s devicepath filename0 filename1\n", argv[0]);
+	if (argc != 2) {
+		fprintf(stderr, "usage: %s devicepath\n", argv[0]);
 		abort();
 	}
 	ndf_init(argv[1]);
@@ -89,107 +90,38 @@ int main(int argc, char **argv) {
 	printf("resetting NAND device...\n");
 	ndf_cmd(0xFF); /* reset */
 	ndf_wait();
-	
-	for (ce = 1; ce < 3; ce++) {
-		unsigned char buf[6];
-		int i;
-		
-		ndf_ce(ce);
-		
-		printf("ce%d: reading device ID: ", ce);
-		ndf_cmd(0x90); /* ID */
-		ndf_adr(0x00);
-		ndf_wait();
-		ndf_read_many(buf, 6);
-		for (i = 0; i < 6; i++)
-			printf("%02x ", buf[i]);
-		printf("\n");
-		
-		printf("ce%d: reading JEDEC ID: ", ce);
-		ndf_cmd(0x90); /* ID */
-		ndf_adr(0x40);
-		ndf_wait();
-		ndf_read_many(buf, 6);
-		for (i = 0; i < 5; i++)
-			printf("'%c' ", buf[i]);
-		printf("0x%02x ", buf[5]);
-		printf("\n");
-		
-		XFAIL(memcmp(buf, "JEDEC", 5));
-	}
-	
+
 	struct timeval tv1, tv2;
 	
 	gettimeofday(&tv1, NULL);
 	
-	int fd0, fd1;
+#define IOBUFSIZ 8192
 	
-	XFAIL((fd0 = creat(argv[2], 0644)) < 0);
-	XFAIL((fd1 = creat(argv[3], 0644)) < 0);
-	
-	int adr;
-#define PAGE_SZ (8192L + 640L)
-#define BYTES_PER_ITER (2L*PAGE_SZ)
-#define TOTAL 0x100000L
-
-#ifdef PIPELINED
-	/* Preload the first guy. */
-	ndf_ce(1);
-	ndf_cmd_read_page(adr);
-	ndf_ce(2);
-#endif
-
-	for (adr = 0; adr < TOTAL; adr++) {
-		unsigned char buf[PAGE_SZ];
-	
+	while (iter++) {
 		gettimeofday(&tv2, NULL);
 		
 		long usec = (tv2.tv_sec - tv1.tv_sec) * 1000000L + (tv2.tv_usec - tv1.tv_usec);
-		long remaining = (TOTAL - adr) * (long long)BYTES_PER_ITER;
-		float bps = (float)(adr*BYTES_PER_ITER*1000000.0)/(float)usec;
-		long secrem = remaining / ((long long)bps + 1);
+		float bps = (float)(iter * IOBUFSIZ * 2 * 1000000L)/(float)usec;
+		if ((iter % 10) == 0)
+			printf("iter %d (%.2f bps, %d bytes xferred)...\r",iter, bps, (iter - 1) * IOBUFSIZ * 2);
 		
-		printf("reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r", adr, TOTAL,
-			bps, secrem / 3600, (secrem % 3600) / 60, secrem % 60);
-		fflush(stdout);
-
-#ifdef PIPELINED		
-		/* adr is already loaded for the first CE; make sure it's
-		 * ready before we set up the second CE.
-		 */
-		ndf_wait();
+		for (ce = 1; ce < 3; ce++) {
 		
-		/* Get the second CE ready while we're working. */
-		ndf_cmd_read_page(adr);
-		
-		/* And then read from the first CE... */
-		ndf_ce(1);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd0, buf, sizeof(buf));
-		
-		/* Now the second CE should be ready. */
-		ndf_wait();
-		
-		/* Get the first CE ready for the next page. */
-		ndf_cmd_read_page(adr + 1);
-		
-		/* And read from the second CE. */
-		ndf_ce(2);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd1, buf, sizeof(buf));
-#else
-		ndf_ce(3);
-		ndf_cmd_read_page(adr);
-		ndf_wait();
-		
-		ndf_ce(1);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd0, buf, sizeof(buf));
-		
-		ndf_ce(2);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd1, buf, sizeof(buf));
-#endif
+			unsigned char buf[IOBUFSIZ];
+			unsigned char good[6] = {'J', 'E', 'D', 'E', 'C', 0x01};
+			int i;
+			
+			ndf_ce(ce);
+			
+			fflush(stdout);
+			ndf_cmd(0x90); /* ID */
+			ndf_adr(0x40);
+			ndf_wait();
+			ndf_read_many(buf, sizeof(buf));
+			for (i = 0; i < sizeof(buf); i++)
+				if (buf[i] != good[i % sizeof(good)])
+					printf("ce%d mismatch: expected %02x, got %02x at ofs %d\n", ce, good[i % sizeof(good)], buf[i], i);
+		}
 	}
 	
 	return 0;
