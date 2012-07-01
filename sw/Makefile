@@ -1,9 +1,11 @@
 CFLAGS = -L /usr/local/lib64/digilent/adept/ -ldepp -I /usr/local/include/digilent/adept/
 CXXFLAGS = -L /usr/local/lib64/digilent/adept/ -ldepp -I /usr/local/include/digilent/adept/
 
-all: flash iobert xor-me
+all: flash flash-det iobert xor-me
 
 flash:
+
+flash-det:
 
 iobert:
 
