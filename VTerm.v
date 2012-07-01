@@ -66,11 +66,11 @@ module Drive7Seg(
 	reg [3:0] ano = 4'b1110;
 	assign ano_out = ano | ~alive;
 
-	reg [8:0] counter = 9'h0;
+	reg [9:0] counter = 10'h0;
 	
 	always @(posedge clk10) begin
-		counter <= counter + 9'h1;
-		if (counter == 9'h0)
+		counter <= counter + 10'h1;
+		if (counter == 10'h0)
 			ano <= {ano[0], ano[3:1]};
 	end
 	
@@ -108,10 +108,10 @@ module VTerm(
 	wire xbuf;
 	IBUFG clkbuf(.O(xbuf), .I(xtal));
 	
-	wire clk10;
+	wire clk_ndf;
 	
-	MulDivDCM dcm10(xbuf, clk10);
-	defparam dcm10.div = 10;
+	MulDivDCM dcm10(xbuf, clk_ndf);
+	defparam dcm10.div = 5;
 	defparam dcm10.mul = 2;
 	
 	reg epp_astb_n_s0, epp_astb_n_s;
@@ -124,7 +124,7 @@ module VTerm(
 	
 	assign epp_dq = epp_wr_n_s ? epp_q : 8'bzzzzzzzz;
 	
-	always @(posedge clk10) begin
+	always @(posedge clk_ndf) begin
 		/* synchronize in signals */
 		epp_astb_n_s0 <= epp_astb_n;
 		epp_astb_n_s <= epp_astb_n_s0;
@@ -150,11 +150,11 @@ module VTerm(
 	wire [3:0] display_alive =
 	  {{2{~ndf_re_n || ~ndf_we_n}}, ndfsm != 'h00, 1'b1};
 	
-	Drive7Seg drive(clk10, display, display_alive, cath, ano);
+	Drive7Seg drive(clk_ndf, display, display_alive, cath, ano);
 	
 	/* Flash the LED when the device is busy. */
 	reg [20:0] led_countdown = 'h0;
-	always @(posedge clk10)
+	always @(posedge clk_ndf)
 		if (led_countdown != 'h0)
 			led_countdown <= led_countdown - 1;
 		else if (led != ndf_r_b_n) begin
@@ -215,7 +215,7 @@ module VTerm(
 			{3'b100, 8'h43}: /* 'C' -- command */
 				ndfsm_next = 'h04;
 			{3'b101, 8'h44}: /* 'D' -- data */
-				ndfsm_next = 'h06;
+				ndfsm_next = 'h0C;
 			{3'b101, 8'h42}: /* 'B' -- busy */
 				ndfsm_next = 'h09;
 			{3'b100, 8'h45}: /* 'E' -- chip enable */
@@ -260,6 +260,9 @@ module VTerm(
 			end
 		
 		/* Read */
+		'h0C:	/* Wait for ready. */
+			if (ndf_r_b_n)
+				ndfsm_next = 'h06;
 		'h06:	begin /* Setup for read */
 			ndf_re_n_next = 0;
 			epp_q_next = ndf_io;
@@ -292,7 +295,7 @@ module VTerm(
 		endcase
 	end
 	
-	always @(posedge clk10) begin
+	always @(posedge clk_ndf) begin
 		ndfsm <= ndfsm_next;
 		
 		ndf_re_n <= ndf_re_n_next;

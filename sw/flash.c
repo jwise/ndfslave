@@ -145,13 +145,13 @@ int main(int argc, char **argv) {
 			float bps = (float)(adr*PAGE_SZ*1000000.0)/(float)usec;
 			long secrem = remaining / ((long long)bps + 1);
 			
-			printf("ce%d: reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r",
-				ce, adr, TOTAL, bps, secrem / 3600, (secrem % 3600) / 60, secrem % 60);
-			fflush(stdout);
+			if ((adr % 10) == 0) {
+				printf("ce%d: reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r",
+					ce, adr, TOTAL, bps, secrem / 3600, (secrem % 3600) / 60, secrem % 60);
+				fflush(stdout);
+			}
 			
 			ndf_cmd_read_page(adr);
-			ndf_wait();
-			
 			ndf_read_many(buf, sizeof(buf));
 			write(fd, buf, sizeof(buf));
 		}
