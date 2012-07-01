@@ -118,10 +118,6 @@ int main(int argc, char **argv) {
 		XFAIL(memcmp(buf, "JEDEC", 5));
 	}
 	
-	struct timeval tv1, tv2;
-	
-	gettimeofday(&tv1, NULL);
-	
 	int fd0, fd1;
 	
 	XFAIL((fd0 = creat(argv[2], 0644)) < 0);
@@ -132,8 +128,12 @@ int main(int argc, char **argv) {
 #define TOTAL 0x180000L
 
 	for (ce = 1; ce < 3; ce++) {
+		struct timeval tv1, tv2;
+
 		int fd = (ce == 1) ? fd0 : fd1;
 		ndf_ce(ce);
+		
+		gettimeofday(&tv1, NULL);
 		
 		for (adr = 0; adr < TOTAL; adr++) {
 			unsigned char buf[PAGE_SZ];
