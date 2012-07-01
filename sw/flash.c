@@ -128,69 +128,38 @@ int main(int argc, char **argv) {
 	XFAIL((fd1 = creat(argv[3], 0644)) < 0);
 	
 	int adr;
-#define PAGE_SZ (8192L + 640L)
-#define BYTES_PER_ITER (2L*PAGE_SZ)
-#define TOTAL 0x100000L
+#define PAGE_SZ (8832L)
+#define TOTAL 0x180000L
 
-#ifdef PIPELINED
-	/* Preload the first guy. */
-	ndf_ce(1);
-	ndf_cmd_read_page(adr);
-	ndf_ce(2);
-#endif
-
-	for (adr = 0; adr < TOTAL; adr++) {
-		unsigned char buf[PAGE_SZ];
-	
-		gettimeofday(&tv2, NULL);
+	for (ce = 1; ce < 3; ce++) {
+		int fd = (ce == 1) ? fd0 : fd1;
+		ndf_ce(ce);
 		
-		long usec = (tv2.tv_sec - tv1.tv_sec) * 1000000L + (tv2.tv_usec - tv1.tv_usec);
-		long remaining = (TOTAL - adr) * (long long)BYTES_PER_ITER;
-		float bps = (float)(adr*BYTES_PER_ITER*1000000.0)/(float)usec;
-		long secrem = remaining / ((long long)bps + 1);
+		for (adr = 0; adr < TOTAL; adr++) {
+			unsigned char buf[PAGE_SZ];
 		
-		printf("reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r", adr, TOTAL,
-			bps, secrem / 3600, (secrem % 3600) / 60, secrem % 60);
-		fflush(stdout);
-
-#ifdef PIPELINED		
-		/* adr is already loaded for the first CE; make sure it's
-		 * ready before we set up the second CE.
-		 */
-		ndf_wait();
-		
-		/* Get the second CE ready while we're working. */
-		ndf_cmd_read_page(adr);
-		
-		/* And then read from the first CE... */
-		ndf_ce(1);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd0, buf, sizeof(buf));
-		
-		/* Now the second CE should be ready. */
-		ndf_wait();
-		
-		/* Get the first CE ready for the next page. */
-		ndf_cmd_read_page(adr + 1);
-		
-		/* And read from the second CE. */
-		ndf_ce(2);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd1, buf, sizeof(buf));
-#else
-		ndf_ce(3);
-		ndf_cmd_read_page(adr);
-		ndf_wait();
-		
-		ndf_ce(1);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd0, buf, sizeof(buf));
-		
-		ndf_ce(2);
-		ndf_read_many(buf, sizeof(buf));
-		write(fd1, buf, sizeof(buf));
-#endif
+			gettimeofday(&tv2, NULL);
+			
+			long usec = (tv2.tv_sec - tv1.tv_sec) * 1000000L + (tv2.tv_usec - tv1.tv_usec);
+			long remaining = (TOTAL - adr) * (long long)PAGE_SZ;
+			float bps = (float)(adr*PAGE_SZ*1000000.0)/(float)usec;
+			long secrem = remaining / ((long long)bps + 1);
+			
+			printf("ce%d: reading page %d / %d (%.2f Bps; %dh%02dm%02ds left)...          \r",
+				ce, adr, TOTAL, bps, secrem / 3600, (secrem % 3600) / 60, secrem % 60);
+			fflush(stdout);
+			
+			ndf_cmd_read_page(adr);
+			ndf_wait();
+			
+			ndf_read_many(buf, sizeof(buf));
+			write(fd, buf, sizeof(buf));
+		}
+		printf("\n");
 	}
+	
+	DeppDisable(hif);
+	DmgrClose(hif);
 	
 	return 0;
 }
