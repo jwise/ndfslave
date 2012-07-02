@@ -1,16 +1,16 @@
 set -tmpdir "xst/projnav.tmp"
 set -xsthdpdir "xst"
 run
--ifn VTerm.prj
+-ifn NDFSlave.prj
 -ifmt mixed
--ofn VTerm
+-ofn NDFSlave
 -ofmt NGC
 -p xc3s1200e-5-fg320
--top VTerm
+-top NDFSlave
 -opt_mode Speed
 -opt_level 1
 -iuc NO
--lso VTerm.lso
+-lso NDFSlave.lso
 -keep_hierarchy NO
 -netlist_hierarchy as_optimized
 -rtlview Yes

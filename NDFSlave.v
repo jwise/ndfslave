@@ -83,7 +83,7 @@ module Drive7Seg(
 	                         display[3:0];
 endmodule
 
-module VTerm(
+module NDFSlave(
 	input xtal,
 	input [3:0] btns,
 	output wire [7:0] cath,

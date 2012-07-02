@@ -1,5 +1,5 @@
-TARGET = VTerm
-VLOGS = VTerm.v
+TARGET = NDFSlave
+VLOGS = NDFSlave.v
 
 VLOGS_ALL = $(VLOGS)
 
