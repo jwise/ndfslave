@@ -15,7 +15,7 @@
 #define KEYSZ 4096
 #define NOFFSETS 64
 #define NPGS_PER_ITER 64
-#define MAXPGS 0x90000
+#define MAXPGS 0x190000
 
 const unsigned char needle[] = { 0x01, 0x86, 0x05, 0x14 };
 
@@ -31,6 +31,7 @@ struct keyprob {
 
 int main(int argc, char **argv) {
 	int fd, i, j, nkey;
+	int fdk;
 	FILE *report;
 	unsigned char *buf;
 	static struct offset offsets[PAGESZ] = {{0}};
@@ -38,8 +39,8 @@ int main(int argc, char **argv) {
 	unsigned int pn = 0;
 	unsigned int pgmax;
 	
-	if (argc != 3) {
-		printf("usage: %s filename report\n", argv[0]);
+	if (argc != 3 && argc != 4) {
+		printf("usage: %s filename report [key]\n", argv[0]);
 		return 1;
 	}
 	
@@ -51,6 +52,10 @@ int main(int argc, char **argv) {
 	XFAIL(buf == MAP_FAILED);
 	
 	XFAIL((report = fopen(argv[2], "w")) == NULL);
+	
+	fdk = -1;
+	if (argc == 4)
+		XFAIL((fdk = creat(argv[3], 0644)) < 0);
 	
 	printf("Analyzing %s...\n", argv[1]);
 	fprintf(report, "Analysis of %s ('h%x pages)\n", argv[1], pgmax);
@@ -109,7 +114,13 @@ int main(int argc, char **argv) {
 	for (nkey = 0; nkey < NOFFSETS; nkey++) {
 		/* Make sure we have enough to form an opinion with. */
 		if (keyprob[nkey].n < 3)
+		{
+			if (fdk >= 0) {
+				unsigned char cs[PAGESZ] = {0};
+				write(fdk, cs, PAGESZ);
+			}
 			continue;
+		}
 		
 		fprintf(report, "Probability at row 'h%02x:\n", nkey);
 		for (i = 0; i < PAGESZ; i++) {
@@ -148,6 +159,8 @@ int main(int argc, char **argv) {
 			if ((i % 16) == 15)
 				fprintf(report, "\n");
 #endif
+			if (fdk >= 0)
+				write(fdk, best, 1);
 		}
 		fprintf(report, "\n");
 	}
