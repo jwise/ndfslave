@@ -16,19 +16,17 @@
 #define NOFFSETS 64
 #define NPGS_PER_ITER 64
 #define MAXPGS 0x90000
-#define MAXLOCS 48
 
 const unsigned char needle[] = { 0x01, 0x86, 0x05, 0x14 };
 
 struct offset {
+	int n;
 	unsigned int page[NOFFSETS];
 };
 
 struct keyprob {
-	int vld;
-	unsigned int row;
-	unsigned int col;
-	unsigned short probs[KEYSZ][0x100];
+	int n;
+	unsigned short probs[PAGESZ][0x100];
 };
 
 int main(int argc, char **argv) {
@@ -36,7 +34,7 @@ int main(int argc, char **argv) {
 	FILE *report;
 	unsigned char *buf;
 	static struct offset offsets[PAGESZ] = {{0}};
-	static struct keyprob keyprob[MAXLOCS] = {{0}};
+	static struct keyprob keyprob[NOFFSETS] = {{0}};
 	unsigned int pn = 0;
 	unsigned int pgmax;
 	
@@ -72,24 +70,18 @@ int main(int argc, char **argv) {
 			printf("...P%06x...\r", pn);
 			fflush(stdout);
 			
+			offsets[ofs].n++;
+			keyprob[pn % NOFFSETS].n++;
 			offsets[ofs].page[pn % NOFFSETS]++;
-			
-			for (nkey = 0; nkey < MAXLOCS; nkey++) {
-				/* Look for either a free probability
-				 * structure, or a matching one.  */
-				if (keyprob[nkey].vld == 0 ||
-				    (keyprob[nkey].row == pn % NOFFSETS &&
-				     keyprob[nkey].col == ofs)) {
-					keyprob[nkey].vld = 1;
-					keyprob[nkey].row = pn % NOFFSETS;
-					keyprob[nkey].col = ofs;
-					
-					for (j = 0; j < KEYSZ; j++)
-						if ((p - pstart) + j < PAGESZ)
-							keyprob[nkey].probs[j][p[j]]++;
-					break;
-				}
-			}
+
+#ifdef CONSERVATIVE /* The sort of thing beware hates. */
+			for (j = 0; j < KEYSZ; j++)
+				if ((p - pstart) + j < PAGESZ)
+					keyprob[pn % NOFFSETS].probs[j + (p - pstart)][p[j]]++;
+#else /* Aggressive (perhaps incorrect?) mode -- the sort of thing beware hates even more! */
+			for (j = 0; j < PAGESZ; j++)
+				keyprob[pn % NOFFSETS].probs[j][pstart[j]]++;
+#endif
 			
 			if (p != (pstart + PAGESZ))
 				p++;
@@ -114,17 +106,18 @@ int main(int argc, char **argv) {
 	
 	printf("Generating key probability statistics...\n");
 	fprintf(report, "\n===== Key probability statistics =====\n\n");
-	for (nkey = 0; nkey < MAXLOCS; nkey++) {
-		if (!keyprob[nkey].vld)
-			break;
-		fprintf(report, "Probability at row 'h%02x, col 'd%d:\n", keyprob[nkey].row, keyprob[nkey].col);
-		for (i = 0; i < KEYSZ; i++) {
+	for (nkey = 0; nkey < NOFFSETS; nkey++) {
+		/* Make sure we have enough to form an opinion with. */
+		if (keyprob[nkey].n < 3)
+			continue;
+		
+		fprintf(report, "Probability at row 'h%02x:\n", nkey);
+		for (i = 0; i < PAGESZ; i++) {
 			int c;
 			int bn;
 			int tot = 0;
 			
 			unsigned char best[4] = {0};
-			fprintf(report, "most likely for position %4d: ", i);
 			
 			for (c = 0; c < 0x100; c++) {
 				for (bn = 0; bn < sizeof(best); bn++)
@@ -136,9 +129,25 @@ int main(int argc, char **argv) {
 				tot += keyprob[nkey].probs[i][c];
 			}
 			
-			for (bn = 0; bn < sizeof(best); bn++)
-				fprintf(report, "  %6.2f%: 0x%02x  ", (float)keyprob[nkey].probs[i][best[bn]] * 100.0f / (float)tot, best[bn]);
-			fprintf(report, "\n");
+			float confidence = keyprob[nkey].probs[i][best[0]] * 100.0f / (float)tot;
+#ifdef VERBOSE			
+			if (confidence > 95.0)
+				fprintf(report, "%4d: 0x%02x (95%%+ confidence)\n", i, best[0]);
+			else {
+				fprintf(report, "%4d: ", i);
+				for (bn = 0; bn < sizeof(best); bn++)
+					fprintf(report, "  %6.2f%: 0x%02x  ", (float)keyprob[nkey].probs[i][best[bn]] * 100.0f / (float)tot, best[bn]);
+				fprintf(report, "\n");
+			}
+#else
+			fprintf(report, "0x%02x%c%c", best[0],
+				confidence < 95.0 ? '?' : ' ',
+				confidence < 90.0 ? '?' : ' ');
+			if ((i % 8) == 7)
+				fprintf(report, "  ");
+			if ((i % 16) == 15)
+				fprintf(report, "\n");
+#endif
 		}
 		fprintf(report, "\n");
 	}
