@@ -12,29 +12,36 @@
 #define XFAIL(p) do { if (p) { fprintf(stderr, "%s (%s:%d): operation failed: %s\n", __FUNCTION__, __FILE__, __LINE__, #p); abort(); } } while(0)
 
 #define PAGESZ 8832L
-#define KEYSZ 256
+#define KEYSZ 4096
 #define NOFFSETS 64
 #define NPGS_PER_ITER 64
 #define MAXPGS 0x90000
+#define MAXLOCS 48
 
 const unsigned char needle[] = { 0x01, 0x86, 0x05, 0x14 };
 
-
 struct offset {
-	int nhits;
 	unsigned int page[NOFFSETS];
 };
 
+struct keyprob {
+	int vld;
+	unsigned int row;
+	unsigned int col;
+	unsigned short probs[KEYSZ][0x100];
+};
+
 int main(int argc, char **argv) {
-	int fd, i, j;
+	int fd, i, j, nkey;
+	FILE *report;
 	unsigned char *buf;
 	static struct offset offsets[PAGESZ] = {{0}};
-	static unsigned int probs[KEYSZ][256] = {{0}};
+	static struct keyprob keyprob[MAXLOCS] = {{0}};
 	unsigned int pn = 0;
 	unsigned int pgmax;
 	
-	if (argc != 2) {
-		printf("usage: %s filename\n", argv[0]);
+	if (argc != 3) {
+		printf("usage: %s filename report\n", argv[0]);
 		return 1;
 	}
 	
@@ -45,56 +52,98 @@ int main(int argc, char **argv) {
 	buf = mmap(NULL, pgmax * PAGESZ, PROT_READ, MAP_SHARED, fd, 0);
 	XFAIL(buf == MAP_FAILED);
 	
+	XFAIL((report = fopen(argv[2], "w")) == NULL);
+	
+	printf("Analyzing %s...\n", argv[1]);
+	fprintf(report, "Analysis of %s ('h%x pages)\n", argv[1], pgmax);
+	fprintf(report, "Using needle: ");
+	for (i = 0; i < sizeof(needle); i++)
+		fprintf(report, "%02x ", needle[i]);
+	fprintf(report, "\n\n");
+	
 	for (i = 0; i < pgmax; i++) {
 		unsigned char *pstart = buf + PAGESZ * i;
 		unsigned char *p = pstart;
 		while ((p = memmem(p, PAGESZ - (p - pstart), needle, sizeof(needle))) != NULL) {
+			int nkey;
+			
 			unsigned long ofs = p - pstart;
 			
 			printf("...P%06x...\r", pn);
 			fflush(stdout);
 			
 			offsets[ofs].page[pn % NOFFSETS]++;
-			offsets[ofs].nhits++;
 			
-			for (j = 0; j < KEYSZ; j++)
-				if ((p - pstart) + j < PAGESZ)
-					probs[j][p[j]]++;
+			for (nkey = 0; nkey < MAXLOCS; nkey++) {
+				/* Look for either a free probability
+				 * structure, or a matching one.  */
+				if (keyprob[nkey].vld == 0 ||
+				    (keyprob[nkey].row == pn % NOFFSETS &&
+				     keyprob[nkey].col == ofs)) {
+					keyprob[nkey].vld = 1;
+					keyprob[nkey].row = pn % NOFFSETS;
+					keyprob[nkey].col = ofs;
+					
+					for (j = 0; j < KEYSZ; j++)
+						if ((p - pstart) + j < PAGESZ)
+							keyprob[nkey].probs[j][p[j]]++;
+					break;
+				}
+			}
 			
 			if (p != (pstart + PAGESZ))
 				p++;
 		}
 		pn++;
 	}
+	printf("\n");
 	
-	printf("all row statistics ANDed with %x\n", NOFFSETS - 1);
+	printf("Generating needle location statistics...\n");
+	fprintf(report, "===== Needle location statistics =====\n\n");
+	
+	fprintf(report, "All rows ANDed with 'h%x\n", NOFFSETS - 1);
+	int locations = 0;
 	for (i = 0; i < PAGESZ; i++)
 		for (j = 0; j < NOFFSETS; j++)
-			if (offsets[i].page[j])
-				printf("row...%02x, col %4d: %4d hits\n", j, i, offsets[i].page[j]);
+			if (offsets[i].page[j]) {
+				locations++;
+				fprintf(report, "row...%02x, col 'd%4d: %4d hits\n", j, i, offsets[i].page[j]);
+			}
+	printf("(%d row,col pairs)\n", locations);
+	fprintf(report, "\nFound %d row, col pairs\n", locations);
 	
-	for (i = 0; i < KEYSZ; i++) {
-		int c;
-		int bn;
-		int tot = 0;
-		
-		unsigned char best[4] = {0};
-		printf("most likely for position %4d: ", i);
-		
-		for (c = 0; c < 0x100; c++) {
+	printf("Generating key probability statistics...\n");
+	fprintf(report, "\n===== Key probability statistics =====\n\n");
+	for (nkey = 0; nkey < MAXLOCS; nkey++) {
+		if (!keyprob[nkey].vld)
+			break;
+		fprintf(report, "Probability at row 'h%02x, col 'd%d:\n", keyprob[nkey].row, keyprob[nkey].col);
+		for (i = 0; i < KEYSZ; i++) {
+			int c;
+			int bn;
+			int tot = 0;
+			
+			unsigned char best[4] = {0};
+			fprintf(report, "most likely for position %4d: ", i);
+			
+			for (c = 0; c < 0x100; c++) {
+				for (bn = 0; bn < sizeof(best); bn++)
+					if (keyprob[nkey].probs[i][c] > keyprob[nkey].probs[i][best[bn]]) {
+						memmove(best+bn+1, best+bn, sizeof(best) - bn - 1);
+						best[bn] = c;
+						break;
+					}
+				tot += keyprob[nkey].probs[i][c];
+			}
+			
 			for (bn = 0; bn < sizeof(best); bn++)
-				if (probs[i][c] > probs[i][best[bn]]) {
-					memmove(best+bn+1, best+bn, sizeof(best) - bn - 1);
-					best[bn] = c;
-					break;
-				}
-			tot += probs[i][c];
+				fprintf(report, "  %6.2f%: 0x%02x  ", (float)keyprob[nkey].probs[i][best[bn]] * 100.0f / (float)tot, best[bn]);
+			fprintf(report, "\n");
 		}
-		
-		for (bn = 0; bn < sizeof(best); bn++)
-			printf("  %6.2f%: 0x%02x  ", (float)probs[i][best[bn]] * 100.0f / (float)tot, best[bn]);
-		printf("\n");
+		fprintf(report, "\n");
 	}
+		
+	fclose(report);
 	
 	return 0;
 }
