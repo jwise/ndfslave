@@ -1,6 +1,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+
+#define XFAIL(p) do { if (p) { fprintf(stderr, "%s (%s:%d): operation failed: %s\n", __FUNCTION__, __FILE__, __LINE__, #p); abort(); } } while(0)
+
 
 int hex2int(unsigned char c) {
 	switch (c) {
@@ -27,37 +34,27 @@ int hex2int(unsigned char c) {
 int main(int argc, unsigned char **argv) {
 	int i;
 	unsigned char *key;
-	int keylen;
+	size_t keylen;
+	int fd;
+	size_t keyp;
 	
 	if (argc != 2) {
-		fprintf(stderr, "usage: %s byte-string\n", argv[0]);
+		fprintf(stderr, "usage: %s keyfile\n", argv[0]);
 		return 1;
 	}
 	
-	key = strdup(argv[1]);
-	for (i = 0; key[i*2]; i++) {
-		unsigned char c1, c2;
-		
-		c1 = key[i*2];
-		c2 = key[i*2+1];
-		if (!c2) {
-			fprintf(stderr, "%s: not an even number of nybbles?\n", argv[0]);
-			return 1;
-		}
-		
-		key[i] = hex2int(c1) << 4 | hex2int(c2);
-	}
-	keylen = i;
-	
-	unsigned char buf[4096];
+	XFAIL((fd = open(argv[1], O_RDONLY)) < 0);
+	keylen = lseek64(fd, 0, SEEK_END);
+	key = mmap(NULL, keylen, PROT_READ, MAP_SHARED, fd, 0);
+	XFAIL(key == MAP_FAILED);
+
+	unsigned char buf[16384];
 	while ((i = read(0, buf, sizeof(buf)))) {
 		int j;
-		for (j = 0; j < i; j += 4) {
-			buf[j] ^= key[j % keylen];
-//			buf[j] = ((buf[j] & 0xAA) >> 1) | ((buf[j] & 0x55) << 1);
-//			buf[j] = ((buf[j] & 0xCC) >> 2) | ((buf[j] & 0x33) << 2);
-//			buf[j] = ((buf[j] & 0xF0) >> 4) | ((buf[j] & 0x0F) << 4);
-		}
+		for (j = 0; j < i; j++)
+			buf[j] ^= key[(j + keyp) % keylen];
+		keyp += i;
+		keyp %= keylen;
 		write(1, buf, i);
 	}
 }
