@@ -52,7 +52,7 @@ int main(int argc, unsigned char **argv) {
 	while ((i = read(0, buf, sizeof(buf)))) {
 		int j;
 		for (j = 0; j < i; j++)
-			buf[j] ^= key[(j + keyp) % keylen];
+			buf[j] ^= key[(j + keyp) % keylen] ^ 0xFF;
 		keyp += i;
 		keyp %= keylen;
 		write(1, buf, i);
