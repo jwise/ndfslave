@@ -15,5 +15,8 @@ entropy: entropy.c
 haystack-me: haystack-me.c
 	gcc -o haystack-me haystack-me.c -O3
 
+dumb-me: dumb-me.c
+	gcc -o dumb-me dumb-me.c -O3
+
 xor-me: xor-me.c
 	gcc -o xor-me xor-me.c -O3
