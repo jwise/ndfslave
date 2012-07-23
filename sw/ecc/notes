@@ -1,0 +1,46 @@
+joshua@nyus:~/flash_fpga/sw/linux$ dd bs=1024 count=1 if=blockkey | ../xor-me invert | ./bchtest | hexdump -C
+1+0 records in
+1+0 records out
+1024 bytes (1.0 kB) copied, 8.972e-06 s, 114 MB/s
+initialized bch code with m=14, n=16383, t=40
+00000000  15 b6 c7 a0 98 ad 3d fe  dd ec 9a b5 ef 9e 67 77  |.¶Ç .­=þÝì.µï.gw|
+00000010  07 84 53 c0 6c 57 e8 66  cc 04 3d 83 d6 95 b0 e9  |..SÀlWèfÌ.=.Ö.°é|
+00000020  b6 4a 71 1c d8 e5 a0 4e  d3 dc 9c 07 f9 c7 38 71  |¶Jq.Øå NÓÜ..ùÇ8q|
+00000030  7f 82 1f d5 90 76 73 3c  83 26 a7 19 69 6a 35 e2  |...Õ.vs<.&§.ij5â|
+00000040  ca d7 83 3f 56 05                                 |Ê×.?V.|
+00000046
+joshua@nyus:~/flash_fpga/sw/linux$ dd bs=1024 skip=1 if=blockkey | ../xor-me invert | hexdump -C
+0+1 records in
+0+1 records out
+70 bytes (70 B) copied, 1.2658e-05 s, 5.5 MB/s
+00000000  15 b6 c7 a0 98 ad 3d fe  dd ec 9a b5 ef 9e 67 77  |.¶Ç .­=þÝì.µï.gw|
+00000010  07 84 53 c0 6c 57 e8 66  cc 04 3d 83 d6 95 b0 e9  |..SÀlWèfÌ.=.Ö.°é|
+00000020  b6 4a 71 1c d8 e5 a0 4e  d3 dc 9c 07 f9 c7 38 71  |¶Jq.Øå NÓÜ..ùÇ8q|
+00000030  7f 82 1f d5 90 76 73 3c  83 26 a7 19 69 6a 35 e2  |...Õ.vs<.&§.ij5â|
+00000040  ca d7 83 3f 56 05                                 |Ê×.?V.|
+00000046
+
+Note: BCH is a linear code -- that is to say:
+  BCH(x) ^ BCH(y) = BCH(x^y)
+
+BCH(blockkey_data ^ 0xFF) == blockkey_ecc ^ 0xFF
+
+for i in `seq 0 7`; do
+    mkdir seg$i
+    dd if=dirstruct bs=$((1024+70)) count=1 skip=$i of=seg$i/raw
+    dd if=seg$i/raw bs=1024 count=1 of=seg$i/rawdata
+    dd if=seg$i/raw bs=1024 skip=1 of=seg$i/rawecc
+    ./bchtest < seg$i/rawdata > seg$i/compecc
+    ../xor-me seg$i/rawecc < seg$i/compecc > seg$i/diffecc 
+    ../xor-me ../crypt-key < seg$i/rawdata > seg$i/decdata
+done
+
+for i in key; do
+    mkdir seg$i
+    dd if=blockkey bs=$((1024+70)) count=1 skip=0 of=seg$i/raw
+    dd if=seg$i/raw bs=1024 count=1 of=seg$i/rawdata
+    dd if=seg$i/raw bs=1024 skip=1 of=seg$i/rawecc
+    ./bchtest < seg$i/rawdata > seg$i/compecc
+    ../xor-me seg$i/rawecc < seg$i/compecc > seg$i/diffecc 
+    ../xor-me ../crypt-key < seg$i/rawdata > seg$i/decdata
+done
