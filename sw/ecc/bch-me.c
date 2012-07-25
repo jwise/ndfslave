@@ -129,7 +129,7 @@ int main(int argc, unsigned char **argv) {
 		write(1, buf, sizeof(buf));
 	}
 	fprintf(stderr, "Checked %d data packets (%d with errors); corrected %d total errors\n", pkts, pkterrs, toterrs);
-	fprintf(stderr, "Checked %d total pages, of which %d contained fully uncorrectable data (i.e., non-standard pages)", pgs, nonpgs);
+	fprintf(stderr, "Checked %d total pages, of which %d contained fully uncorrectable data (i.e., non-standard pages)\n", pgs, nonpgs);
 	fprintf(stderr, "Average BER: %0.2e\n",
 		(float)toterrs /
 		((float)pkts * (float)((DATALEN + ECCLEN) * 8)));
