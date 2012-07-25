@@ -1,5 +1,6 @@
 #define _LARGEFILE64_SOURCE
 #include <stdio.h>
+#include <signal.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,6 +15,12 @@
 #define ECCLEN 70
 
 #define XFAIL(p) do { if (p) { fprintf(stderr, "%s (%s:%d): operation failed: %s\n", __FUNCTION__, __FILE__, __LINE__, #p); abort(); } } while(0)
+
+volatile int stop = 0;
+
+void sigint(int sig) {
+	stop = 1;
+}
 
 int main(int argc, unsigned char **argv) {
 	int i;
@@ -56,14 +63,19 @@ int main(int argc, unsigned char **argv) {
 	free(key);
 
 	fprintf(stderr, "%d pages precomputed\n", keylen);
+	
+	signal(SIGINT, sigint);
 
 	unsigned char buf[PAGESZ];
 	keyp = 0;
+	int pgs = 0;
 	int pkts = 0;
 	int toterrs = 0;
 	int pkterrs = 0;
-	while (read(0, buf, sizeof(buf)) == sizeof(buf)) {
+	int nonpgs = 0;
+	while (read(0, buf, sizeof(buf)) == sizeof(buf) && !stop) {
 		int subpg;
+		int uncor = 0;
 		
 		keyp %= keylen;
 		
@@ -74,8 +86,8 @@ int main(int argc, unsigned char **argv) {
 		if (i == 512) {
 			/* That's not right.  That's not even wrong. */
 			keyp++;
+			pgs++;
 			write(1, buf, sizeof(buf));
-			fprintf(stderr, "skipped page\n");
 			continue;
 		}
 		
@@ -89,8 +101,10 @@ int main(int argc, unsigned char **argv) {
 				p[DATALEN+i] ^= syndromekey[keyp * ECCLEN + i];
 			
 			rv = bch_decode(bch, p, DATALEN, p + DATALEN, NULL, NULL, errs);
-			XFAIL(rv < 0 && "Uncorrectable ECC error.");
-			if (rv != 0) {
+			if (rv < 0)
+				uncor++;
+			
+			if (rv > 0) {
 				pkterrs++;
 				toterrs += rv;
 				
@@ -105,10 +119,17 @@ int main(int argc, unsigned char **argv) {
 			pkts++;
 		}
 		
+		if (uncor != 0 && uncor != subpg)
+			fprintf(stderr, "*** %d uncorrectable ECC errors at page %d\n", uncor, pgs);
+		if (uncor == subpg)
+			nonpgs++;
+		
 		keyp++;
+		pgs++;
 		write(1, buf, sizeof(buf));
 	}
 	fprintf(stderr, "Checked %d data packets (%d with errors); corrected %d total errors\n", pkts, pkterrs, toterrs);
+	fprintf(stderr, "Checked %d total pages, of which %d contained fully uncorrectable data (i.e., non-standard pages)", pgs, nonpgs);
 	fprintf(stderr, "Average BER: %0.2e\n",
 		(float)toterrs /
 		((float)pkts * (float)((DATALEN + ECCLEN) * 8)));

@@ -953,7 +953,7 @@ static int chien_search(struct bch_control *bch, unsigned int len,
  * @errloc:   output array of error locations
  *
  * Returns:
- *  The number of errors found, or -EBADMSG if decoding failed, or -EINVAL if
+ *  The number of errors found, or -1 if decoding failed, or -2 if
  *  invalid parameters were provided
  *
  * Depending on the available hw BCH support and the need to compute @calc_ecc
@@ -995,7 +995,7 @@ int bch_decode(struct bch_control *bch, const uint8_t *data, unsigned int len,
 
 	/* sanity check: make sure data length can be handled */
 	if (8*len > (bch->n-bch->ecc_bits))
-		return -EINVAL;
+		return -2;
 
 	/* if caller does not provide syndromes, compute them */
 	if (!syn) {
@@ -1042,7 +1042,7 @@ int bch_decode(struct bch_control *bch, const uint8_t *data, unsigned int len,
 			errloc[i] = (errloc[i] & ~7)|(7-(errloc[i] & 7));
 		}
 	}
-	return (err >= 0) ? err : -EBADMSG;
+	return (err >= 0) ? err : -1;
 }
 
 /*
