@@ -1,7 +1,7 @@
 CFLAGS = -L /usr/local/lib64/digilent/adept/ -ldepp -I /usr/local/include/digilent/adept/
 CXXFLAGS = -L /usr/local/lib64/digilent/adept/ -ldepp -I /usr/local/include/digilent/adept/
 
-all: flash flash-det iobert xor-me haystack-me ecc
+all: flash flash-det iobert xor-me haystack-me ecc list-blocks
 
 ecc:
 	$(MAKE) -C ecc
@@ -24,3 +24,6 @@ dumb-me: dumb-me.c
 
 xor-me: xor-me.c
 	gcc -o xor-me xor-me.c -O3
+
+list-blocks: list-blocks.c
+	gcc -o list-blocks list-blocks.c -O3
