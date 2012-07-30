@@ -115,10 +115,10 @@ static int lofile_read_a_little(const char *path, char *buf, size_t size, off_t 
 
 	pg = offset % (off_t)(SECBLOCK * SECCNT * BLOCKSZ) / (off_t)(SECBLOCK * SECCNT);
 	
+	pg = (pg >> 1) + ((pg & 1) << 8);
+
 	cs = pg & 1;
 	pg = pg >> 1;
-	
-	pg = (pg >> 1) + ((pg & 1) << 7);
 	
 	fprintf(stderr, "  offset %08x -> virtblock %04x, cs %d, pg %02x, sec %d, secofs %02x\n", offset, block, cs, pg, sec, secofs);
 
