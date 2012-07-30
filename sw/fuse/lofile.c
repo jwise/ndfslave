@@ -122,12 +122,11 @@ static int lofile_read_a_little(const char *path, char *buf, size_t size, off_t 
 	
 	fprintf(stderr, "  offset %08x -> virtblock %04x, cs %d, pg %02x, sec %d, secofs %02x\n", offset, block, cs, pg, sec, secofs);
 
-	lseek64(cs ? _fd1 : _fd0,
-	        (phys * (BLOCKSZ / 2) + pg) * PAGESZ +
-	        sec * (SECBLOCK + ECCSZ) +
-	        secofs,
-	        SEEK_SET);
-	return read(cs ? _fd1 : _fd0, buf, size);
+	return pread64(cs ? _fd1 : _fd0,
+	               buf, size,
+    	               (phys * (BLOCKSZ / 2) + pg) * PAGESZ +
+	               sec * (SECBLOCK + ECCSZ) +
+	               secofs);
 }
 
 static int lofile_read(const char *path, char *buf, size_t size, off_t offset,
