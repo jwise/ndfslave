@@ -110,19 +110,18 @@ static int lofile_read_a_little(const char *path, char *buf, size_t size, off_t 
 	fprintf(stderr, "rq for block %04x, phys %04x, confidence %d\n", block, _tab[block].phys, _tab[block].confidence);
 	
 	phys = _tab[block].phys;
-#define BLOCK_THEN_BLOCK
-#ifdef BLOCK_THEN_BLOCK
-	cs = offset % (off_t)(SECBLOCK * SECCNT * BLOCKSZ) / (off_t)(SECBLOCK * SECCNT * BLOCKSZ / 2);
-	pg = offset % (off_t)(SECBLOCK * SECCNT * BLOCKSZ / 2) / (off_t)(SECBLOCK * SECCNT);
 	sec = offset % (off_t)(SECBLOCK * SECCNT) / (off_t)SECBLOCK;
 	secofs = offset % (off_t)SECBLOCK;
-#else
-	cs = offset % (off_t)(SECBLOCK * SECCNT * 2) / (off_t)(SECBLOCK * SECCNT);
-	pg = offset % (off_t)(SECBLOCK * SECCNT * BLOCKSZ) / (off_t)(SECBLOCK * SECCNT * 2);
-	sec = offset % (off_t)(SECBLOCK * SECCNT) / (off_t)SECBLOCK;
-	secofs = offset % (off_t)SECBLOCK;
-#endif
+
+	pg = offset % (off_t)(SECBLOCK * SECCNT * BLOCKSZ) / (off_t)(SECBLOCK * SECCNT);
 	
+	cs = pg & 1;
+	pg = pg >> 1;
+	
+	pg = (pg >> 1) + ((pg & 1) << 7);
+	
+	fprintf(stderr, "  offset %08x -> virtblock %04x, cs %d, pg %02x, sec %d, secofs %02x\n", offset, block, cs, pg, sec, secofs);
+
 	lseek64(cs ? _fd1 : _fd0,
 	        (phys * (BLOCKSZ / 2) + pg) * PAGESZ +
 	        sec * (SECBLOCK + ECCSZ) +
