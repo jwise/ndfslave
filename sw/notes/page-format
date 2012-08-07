@@ -1,0 +1,149 @@
+looking at page #1110634, which contains a directory structure
+1110634 % 64 = 42 = 'h2a
+
+0x0000 - 0x03FF =    0 - 1023 = data
+0x0400 - 0x0445 = 1024 - 1093 = garbage
+0x0436 - 0x0845 = 1094 - 2117 = data
+0x0846 - 0x088B = 2118 - 2187 = garbage
+0x088C - 0x0C8B = 2188 - 3211 = data
+0x0C8C - 0x0CD1 = 3212 - 3281 = garbage
+0x0CD2 - 0x10D1 = 3282 - 4305 = data
+0x10D2 - 0x1117 = 4306 - 4375 = garbage
+0x1118 - 0x1517 = 4376 - 5399 = data
+0x1518 - 0x155D = 5400 - 5469 = garbage
+0x155E - 0x195D = 5470 - 6493 = data
+0x195E - 0x19A3 = 6494 - 6563 = garbage
+0x19A4 - 0x1DA3 = 6564 - 7587 = data (zeroes)
+0x1DA4 - 0x1DE9 = 7588 - 7657 = garbage (common)
+0x1DEA - 0x21E9 = 7658 - 8681 = data (zeroes)
+0x21EA - 0x222F = 8682 - 8751 = garbage (common)
+0x2230 - 0x2249 = 8752 - 8777 = more different garbage
+0x224A - 0x2280 = 8778 - 8832 = 'hFF
+
+sec key at    0 starts 03 82 09 ...
+ECC key at 1024 starts ea 49 38 ...
+sec key at 1094 starts 03 82 09 ...
+ecc key at 2118 starts ea 49 38 ...
+sec key at 2188 starts 03 82 09 ... bd b5 8d
+ecc key at 3212 starts ea 49 38 ... c0 a9 fa
+sec key at 3282 starts 03 82 09 ... bd b5 8d
+ecc key at 4306 starts ea 49 38 ... c0 a9 fa
+...
+ecc key at 8682 starts ea 49 38 ... c0 a9 fa
+garbage:
+         8752: 85% of the time 0xDE, then high entropy
+         8753: f2 f3 f4 f5...
+         8754: high entropy
+         8755: 95%+ 0xff
+         8756: 93%+ 0xfe
+  8757 - 8776: high entropy
+         8777: 9f bf ef ff ...
+  8778 - 8832: 95%+ 0xff
+
+patent US20110004812 may be interesting?
+
+--
+
+'h134900, 'h134901, 'h134902 all have same ending garbage? (8752/'h2230+)
+1348ff, 1348fe have same ending garbage, but different from 134900's
+garbage seems to be 0x100 pages in size (2MB of data)
+garbage is the same from cs0 to cs1!
+
+EMARNUS FAT32 lives at sector 0 of page 0x134900 of flash2.cs0.decrypt
+RRaA sector lives at sector 1
+exec sector lives at sector 2
+sector 3 is blank
+
+NO NAME FAT32 lives at sector 6
+RRaA at sector 7
+(Backup copy)
+
+expected boot code has no strings, looks like:
+00000000  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+*
+000001b0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 82 |................|
+000001c0  03 00 0c 0e e5 a9 00 20  00 00 00 98 e0 01 00 00 |....... ........|
+000001d0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 |................|
+*
+000001f0  00 00 00 00 00 00 00 00  00 00 00 00 00 00 55 aa |..............U.|
+
+with partition starting at 0x400000
+
+seen something at 171B60 and 175000
+
+175000 seems like the true one, 171B60 seems like a weird false friend
+
+175000 contains at the end:
+00002230  be ff ff ff fe e8 54 1f  30 c8 3f b4 bf dc d5 f7 |¾ÿÿÿþèT.0È?´¿ÜÕ÷|
+00002240  16 fd 66 24 23 d3 e4 a2  c8 3f ff ff ff ff ff ff |.ýf$#Óä¢È?ÿÿÿÿÿÿ|
+
+134900 contains at the end:
+00002230  cc ff fe ff fe de 92 0a  bc 45 66 e2 ce bf bb 3b |ÌÿþÿþÞ..¼EfâÎ¿»;|
+00002240  3b ce 95 b0 1a ec d3 ad  b7 bf ff ff ff ff ff ff |;Î.°.ìÓ­·¿ÿÿÿÿÿÿ|
+
+theory: ff ff / ff fe (bytes 2 and 3) are a block number.  maximum here
+would be 65535; a block is 4MB; this should be enough to reconstruct a
+filesystem.
+
+--
+
+Nearly mounted it, but found no FAT.
+
+FAT32 header:
+
+Bytes per sector: 0x200 (512, as expected)
+Sectors per cluster: 0x40 (32kb)
+Reserved sectors: 0x1f6
+Number of FATs: 2
+Root dirents: 0 (expected for FAT32)
+Sectors for small part: 0 (expected for FAT32)
+Media descriptor: 0xF8 (hard disk)
+Sectors per FAT (old): 0 (expected for FAT32)
+Sectors per track: 0x3F
+Number of heads: 0xFF
+Number of hidden sectors: 0x2000
+Number of sectors in partition: 0x0120b800
+Sectors per FAT: 0xf05
+Flags: 0
+FAT32 version: 0.0
+Root directory cluster: 2
+FSI sector: 1
+Backup boot sector: 6
+Logical drive number: 0x80
+Sig: OK
+Serial: 00000000
+
+From this:
+
+FAT starts at 0x1F6 and extends to 0x1FFF ('Huh!'... ==4MB)
+
+Start sector is at cs1+0x10ec00 = cs1+sec 0x876 (page 
+or cs1+0x187600 = cs1+sec 0xC3B
+
+First FAT starts at byte 257024 (sector 502)
+
+008: cs0 500 ->  d00, cs1 1500 -> 1d00
+044: cs0 280 ->  a80, cs1 1280 -> 1a80
+87                    contains 
+088: cs0 d00 ->  500, cs1 1d00 -> 1500
+0c4: cs0 a80 -> 1280, cs1 1a80 -> 2280
+
+2048 (== 0x800) FAT clusters per page
+
+conclusion:
+  interleaving may be:
+    cs0:0, cs0:80, cs1:0, cs1:80
+
+part starts at sec 0x2000
+FAT0 starts at part + sec 0x1f6
+FAT1 starts at part + sec 0x10FB
+
+ except FAT0+0x2A00 is correct   (81 0a 00 00 ...),
+whereas FAT1+0x2A00 is incorrect (81 12 00 00 ...),
+off by a full page
+
+shows up at CS0+ 0x11600
+shows up at CS0+0x188000
+
+2a00 = sec 15
+

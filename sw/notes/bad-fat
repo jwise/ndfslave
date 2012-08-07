@@ -1,0 +1,101 @@
+looking for: M4H02203
+/MP_ROOT/309MNV01/M4H02203.MP4
+  Contains a free cluster (441090). Assuming EOF.
+/MP_ROOT/309MNV01/M4H02203.MP4
+  File size is 484739781 bytes, cluster chain length is 0 bytes.
+  Truncating file to 0 bytes.
+/MP_ROOT/309MNV01/M4H02203.THM
+  Contains a free cluster (455938). Assuming EOF.
+/MP_ROOT/309MNV01/M4H02203.THM
+  File size is 5013 bytes, cluster chain length is 0 bytes.
+  Truncating file to 0 bytes.
+
+pages this shows up: 1144929, 1359457, 1359943 (flash2.cs0.fixed)
+
+1144929 seems to be the private store
+
+1359457 also seems to be a private store
+
+1359943 looks like the dirent
+
+contents look like:
+
+000000c0  4d 34 48 30 32 32 30 33  4d 50 34 20 00 64 fd a9  |M4H02203MP4 .dý©|
+000000d0  ab 40 ab 40 06 00 e3 aa  ab 40 02 bb c5 8a e4 1c  |«@«@..ãª«@.»Å.ä.|
+000000e0  4d 34 48 30 32 32 30 33  54 48 4d 20 00 00 fd a9  |M4H02203THM ..ý©|
+000000f0  ab 40 ab 40 06 00 fd a9  ab 40 02 f5 95 13 00 00  |«@«@..ý©«@.õ....|
+
+MP4 start cluster 00 06 bb 02 (BE)
+THM start cluster 00 06 f5 02 (BE)
+FAT appears to end at 00 06 6b 73 (BE) (fat0+0019adc8)
+
+searching for datum 03 bb 06 00 (LE), exists at pages:
+  cs0+239987
+  cs0+322173
+  cs0+505909
+  cs0+1225233
+  cs0+1256184
+  [cs1+...?]
+
+search for datum 03 bb 06 00 04 bb (LE), exists at pages:
+  not on cs0 at all!
+  cs1+1147444
+  cs1+1147445
+  cs1+1147446
+  cs1+1147447
+  cs1+1147448
+  cs1+1147450
+  cs1+1147497
+  cs1+1147499
+  cs1+1147577
+  cs1+1147626
+  cs1+1147628
+
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.fixed bs=8832 skip=1147444 count=1 | ./depage > 444
+1+0 records in
+1+0 records out
+8832 bytes (8.8 kB) copied, 1.5405e-05 s, 573 MB/s
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.fixed bs=8832 skip=1147445 count=1 | ./depage > 445
+1+0 records in
+1+0 records out
+8832 bytes (8.8 kB) copied, 1.5588e-05 s, 567 MB/s
+joshua@nyus:~/flash_fpga/sw$ cmp 444 445
+joshua@nyus:~/flash_fpga/sw$
+
+joshua@nyus:~/flash_fpga/sw$ for i in 1147444 1147445 1147446 1147447 1147448 1147450 1147497 1147499 1147577 1147626 1147628 ; do dd if=flash2.cs1.fixed bs=8832 skip=$i count=1 2>/dev/null | ./depage > $i; cmp -b 444 $i; rm $i; done
+444 1147497 differ: byte 5613, line 7 is   0 ^@ 174 |
+444 1147499 differ: byte 5613, line 7 is   0 ^@ 174 |
+444 1147577 differ: byte 1, line 1 is   1 ^A   0 ^@
+444 1147626 differ: byte 1, line 1 is   1 ^A 201 M-^A
+444 1147628 differ: byte 1, line 1 is   1 ^A 201 M-^A
+
+444-499 seem to be FATs starting at 00 06 b5 01
+
+626 seems to be a FAT starting at 00 06 ba 81
+577 seemed to be a FAT that would have started there, but was offset
+
+offset 2230 from page '626:
+00002230  bb ff fe 0c ff f3 c1 29  26 47 bc 42 ca 84 68 38  |»ÿþ.ÿóÁ)&G¼BÊ.h8|
+00002240  75 d2 96 3d 1f ff 72 b6  a0 2f ff ff ff ff ff ff  |uÒ.=.ÿr¶ /ÿÿÿÿÿÿ|
+
+from '577:
+00002230  bb ff fe 0c ff f3 c1 29  26 47 bc 42 ca 84 68 38  |»ÿþ.ÿóÁ)&G¼BÊ.h8|
+00002240  75 d2 96 3d 1f ff 72 b6  a0 2f ff ff ff ff ff ff  |uÒ.=.ÿr¶ /ÿÿÿÿÿÿ|
+
+note that from '577 in cs0:
+00002230  bb ff fe 7f ff bf 7d 86  53 56 b5 81 cb 72 62 95  |»ÿþ.ÿ¿}.SVµ.Ërb.|
+00002240  75 ef 3d 8d 96 03 40 c8  0a 4f ff ff ff ff ff ff  |uï=...@È.Oÿÿÿÿÿÿ|
+
+'626 is *empty* in cs0
+
+'497 is *empty* in cs0
+
+'446 in cs0:
+00002230  bb ff fe 07 ff 1d 97 21  56 e6 6e 95 b0 a2 ca f2  |»ÿþ.ÿ..!Væn.°¢Êò|
+00002240  b6 5b 1e e8 ea 4d 14 f5  da 7f ff ff ff ff ff ff  |¶[.èêM.õÚ.ÿÿÿÿÿÿ|
+
+'446 in cs1:
+00002230  bb ff fe 84 ff a9 f5 90  eb c8 99 04 af 13 ea 0d  |»ÿþ.ÿ©õ.ëÈ..¯.ê.|
+00002240  9b 46 05 43 69 c5 fb ec  47 6f ff ff ff ff ff ff  |.F.CiÅûìGoÿÿÿÿÿÿ|
+
+
