@@ -129,4 +129,42 @@ joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs0.fixed bs=
      22 00002230  de f2 e9
      24 00002230  de ff ff
 
+-----
+
+Irritatingly, it looks like certain page tags map to multiple FAT ranges! 
+For instance:
+
+joshua@nyus:~/flash_fpga/sw$ ./patchsec < flash2.cs1.patchblock | sort | less -R
+[...]
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0f9 (586 votes); cs 0 pg be (input pgn 64)
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0f9 (586 votes); cs 0 pg be (input pgn 65)
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0f9 (586 votes); cs 0 pg be (input pgn 67)
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0fa (586 votes); cs 1 pg 3e (input pgn 192)
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0fa (586 votes); cs 1 pg 3e (input pgn 193)
+44 00 01 f5 00 21 27 ed 5c e9 3c 76 5a 9d bf a2 c9 3f 2a 96 8d c6 57 77 58 90 -> fat0 logpg 0fa (586 votes); cs 1 pg 3e (input pgn 195)
+[...]
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.patchblock bs=8832 count=1 skip=67 2>/dev/null | hexdump -C | head -n3
+00000000  81 d2 06 00 82 d2 06 00  83 d2 06 00 84 d2 06 00  |.Ò...Ò...Ò...Ò..|
+00000010  85 d2 06 00 86 d2 06 00  87 d2 06 00 88 d2 06 00  |.Ò...Ò...Ò...Ò..|
+00000020  89 d2 06 00 8a d2 06 00  8b d2 06 00 8c d2 06 00  |.Ò...Ò...Ò...Ò..|
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.patchblock bs=8832 count=1 skip=192 2>/dev/null | hexdump -C | head -n3
+00000000  81 da 06 00 82 da 06 00  83 da 06 00 84 da 06 00  |.Ú...Ú...Ú...Ú..|
+00000010  85 da 06 00 86 da 06 00  87 da 06 00 88 da 06 00  |.Ú...Ú...Ú...Ú..|
+00000020  89 da 06 00 8a da 06 00  8b da 06 00 8c da 06 00  |.Ú...Ú...Ú...Ú..|
+
+44 00 01 81 00 d9 ff 3d 53 fb 18 f4 fe 81 47 0f 8c af 8f 5b 2a 05 b7 36 86 20 -> fat0 logpg 102 (935 votes); cs 1 pg 40 (pgn 115)
+44 00 01 81 00 d9 ff 3d 53 fb 18 f4 fe 81 47 0f 8c af 8f 5b 2a 05 b7 36 86 20 -> fat0 logpg 103 (1461 votes); cs 1 pg c0 (pgn 252)
+
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.patchblock bs=8832 count=1 skip=115 2>/dev/null | hexdump -C | head -n3
+00000000  01 15 07 00 02 15 07 00  03 15 07 00 04 15 07 00  |................|
+00000010  05 15 07 00 06 15 07 00  07 15 07 00 08 15 07 00  |................|
+00000020  09 15 07 00 0a 15 07 00  0b 15 07 00 0c 15 07 00  |................|
+joshua@nyus:~/flash_fpga/sw$ dd if=flash2.cs1.patchblock bs=8832 count=1 skip=252 2>/dev/null | hexdump -C | head -n3
+00000000  01 1d 07 00 02 1d 07 00  03 1d 07 00 04 1d 07 00  |................|
+00000010  05 1d 07 00 06 1d 07 00  07 1d 07 00 08 1d 07 00  |................|
+00000020  09 1d 07 00 0a 1d 07 00  0b 1d 07 00 0c 1d 07 00  |................|
+
+More info:
+
+(for i in cs0 cs1; do ./patchsec < flash2.$i.patchblock | while read a; do echo "$a",$i; done; done) | sort | less -R
 

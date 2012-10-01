@@ -49,6 +49,7 @@ void vote(struct vote *votes, int nvotes, int value) {
 
 int main(int argc, char **argv) {
 	unsigned char buf[PGSZ];
+	int pgn = 0;
 	
 	while (read(0, buf, PGSZ) == PGSZ) {
 		int blk;
@@ -62,9 +63,13 @@ int main(int argc, char **argv) {
 			fatp = (unsigned int *)(buf + blk * (ECCBLKSZ + ECCOOBSZ));
 			for (ofs = 0; ofs < (ECCBLKSZ / 4); ofs++) {
 				int fat = fatp[ofs];
-				int secofs = fat / (512 / 4);
+				/* FAT1 at 0x30FB */
+				int secofs = fat / (512 / 4) + 0x21F6;
 				
-				if (((fat & 0x0FFFFFF0) != 0x0FFFFFF0) && (secofs != 0))
+				secofs /= NECCBLKS * (ECCBLKSZ / 512);
+				secofs -= 0x200 /* remember, we're in the second block */;
+				
+				if (((fat & 0x0FFFFFF0) != 0x0FFFFFF0) && ((fat & 0x0F) != 0))
 					vote(votes, sizeof(votes)/sizeof(votes[0]), secofs);
 			}
 		}
@@ -81,33 +86,23 @@ int main(int argc, char **argv) {
 				printf("%02x ", (unsigned char)~buf[i]);
 		}
 		
-		printf("-> offsetsec %08x: ", voted);
-		
 		{
-			int prisec = voted + 0x21F6;
-			int secsec = voted + 0x30FB;
-			int i;
+			int pg = voted;
+
+			int logpg = pg;
+				
+			pg = (pg >> 1) + ((pg & 1) << 8);
+
+			int cs;
+			cs = pg & 1;
+			pg = pg >> 1;
 			
-			for (i = 0; i < 2; i++) {
-				int sec = i ? secsec : prisec;
-				
-				int pg = sec / 16;
-				int logpg;
-				int block = pg / 0x200;
-				pg = pg % 0x200;
-				logpg = pg;
-				
-				pg = (pg >> 1) + ((pg & 1) << 8);
-				
-				int cs;
-				cs = pg & 1;
-				pg = pg >> 1;
-				
-				printf("%s->sec %08x; cs %d pg %03x pgad" GREEN "%04x+%03x" NORMAL "; ", i ? "fat2" : "fat1", sec, cs, pg, block, logpg);
-			}
+			printf("-> fat0 logpg " GREEN "%03x" NORMAL " (%5d votes); cs %d pg %02x", logpg, votes[0].votes, cs, pg);
 		}
 		
-		printf("\n");
+		printf(" (pgn %03x)\n", pgn);
+		
+		pgn++;
 	}
 	
 	return 0;
