@@ -99,3 +99,34 @@ note that from '577 in cs0:
 00002240  9b 46 05 43 69 c5 fb ec  47 6f ff ff ff ff ff ff  |.F.CiÅûìGoÿÿÿÿÿÿ|
 
 
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 512`; do dd if=flash2.cs0.fixed bs=8832 skip=$((0x118200+$i)) count=1 | dd bs=8752 count=1; dd if=flash2.cs0 bs=8832 skip=$((0x118200+$i)) count=1 | dd bs=8752 skip=1; done > flash2.cs0.patchblock 2>/dev/null
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 512`; do dd if=flash2.cs1.fixed bs=8832 skip=$((0x118200+$i)) count=1 | dd bs=8752 count=1; dd if=flash2.cs1 bs=8832 skip=$((0x118200+$i)) count=1 | dd bs=8752 skip=1; done > flash2.cs1.patchblock 2>/dev/null
+
+-----
+
+block 1 is at 0x134900
+
+Interestingly, the command words are *not* the same for the whole block!
+
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs0.fixed bs=8832 skip=$((0x134900+$i)) count=1 2>/dev/null | hd | grep 00002230; done | sort | uniq -c
+     96 00002230  ed f2 e8 ff ff 90 4e e0  2e 53 41 a0 93 8d 4e ca  |íòèÿÿ.Nà.SA ..NÊ|
+     28 00002230  ed f2 ff ff ff 90 4e e0  2e 53 41 a0 93 8d 4e ca  |íòÿÿÿ.Nà.SA ..NÊ|
+      4 00002230  ed ff fe ff ff de 92 0a  bc 45 66 e2 ce 8d bb 3b  |íÿþÿÿÞ..¼EfâÎ.»;|
+    128 00002230  ed ff fe ff ff de 92 0a  bc 45 66 e2 ce bf bb 3b  |íÿþÿÿÞ..¼EfâÎ¿»;|
+
+Same pattern for CS1.
+
+This happens even on a 'known good' block, in a similar pattern (96, 28, 4,
+and 128).
+
+Some of the modified block numbers -- f2e8, f2ff, fffe (real block number is
+fffe) seem to match up with some of the block numbers from the patch block:
+
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs0.fixed bs=8832 skip=$((0x118200+$i)) count=1 2>/dev/null | hd | grep 00002230; done | cut -d' ' -f1-5 | sort | uniq -c
+     74 00002230  9a f2 e8
+     28 00002230  9a f2 ff
+    108 00002230  9a ff fe
+     22 00002230  de f2 e9
+     24 00002230  de ff ff
+
+
