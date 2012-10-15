@@ -47,11 +47,30 @@ void vote(struct vote *votes, int nvotes, int value) {
 	votes[i].votes = 1;
 }
 
+#define NPATCHES 256
+struct patch {
+	int sector;
+	int pg;
+	int confidence;
+	int fd;
+};
+
 int main(int argc, char **argv) {
 	unsigned char buf[PGSZ];
+	struct patch patches[NPATCHES] = {{0}};
 	int pgn = 0;
+	int fd;
+	int ofd = -1;
 	
-	while (read(0, buf, PGSZ) == PGSZ) {
+	if (argc != 2 && argc != 3) {
+		fprintf(stderr, "usage: %s patchblock [patchlist]\n", argv[0]);
+		return 1;
+	}
+	XFAIL((fd = open(argv[1], O_RDONLY)) < 0);
+	if (argc == 3)
+		XFAIL((ofd = creat(argv[2], 0644)) < 0);
+	
+	while (read(fd, buf, PGSZ) == PGSZ) {
 		int blk;
 		unsigned int *fatp;
 		struct vote votes[10] = {0};
@@ -63,11 +82,13 @@ int main(int argc, char **argv) {
 			fatp = (unsigned int *)(buf + blk * (ECCBLKSZ + ECCOOBSZ));
 			for (ofs = 0; ofs < (ECCBLKSZ / 4); ofs++) {
 				int fat = fatp[ofs];
-				/* FAT1 at 0x30FB */
-				int secofs = fat / (512 / 4) + 0x21F6;
+				/* FAT0 at +0x21F6, FAT1 at +0x30FB */
+				int secofs = fat / (512 / 4);
 				
-				secofs /= NECCBLKS * (ECCBLKSZ / 512);
-				secofs -= 0x200 /* remember, we're in the second block */;
+				/* Compensate for position from start of page. */
+				if (ofs >= (256 / 4))
+					secofs--;
+				secofs -= blk * 2;
 				
 				if (((fat & 0x0FFFFFF0) != 0x0FFFFFF0) && ((fat & 0x0F) != 0))
 					vote(votes, sizeof(votes)/sizeof(votes[0]), secofs);
@@ -79,6 +100,10 @@ int main(int argc, char **argv) {
 		if (voted > 0x1000)
 			continue;
 		
+		if (votes[0].votes < 200)
+			continue;
+		
+#if 0
 		{
 			int i;
 			
@@ -99,11 +124,32 @@ int main(int argc, char **argv) {
 			
 			printf("-> fat0 logpg " GREEN "%03x" NORMAL " (%5d votes); cs %d pg %02x", logpg, votes[0].votes, cs, pg);
 		}
+#endif
+		printf("FAT sector offset %03x (F0 %04x, F1 %04x) (%5d votes)", voted, voted + 0x21F6, voted + 0x30FB, votes[0].votes);
+		printf(" (pgn %03x @ %s)\n", pgn, argv[1]);
 		
-		printf(" (pgn %03x)\n", pgn);
-		
+		if ((((voted + 0x21F6) & 0xF) == 0x0) || (((voted + 0x30FB) & 0xF) == 0x0)) {
+			int sector = (((voted + 0x21F6) & 0xF) == 0x0) ? (voted + 0x21F6) : (voted + 0x30FB);
+			int i;
+			
+			for (i = 0; i < NPATCHES; i++)
+				if (patches[i].sector == 0 || patches[i].sector == sector)
+					break;
+			if (i == NPATCHES) 
+				printf("*** too many patches!\n");
+			else if (votes[0].votes >= patches[i].confidence) {
+				patches[i].fd = -1;
+				patches[i].confidence = votes[0].votes;
+				patches[i].sector = sector;
+				patches[i].pg = pgn;
+			}
+		}
+
 		pgn++;
 	}
+	
+	if (ofd >= 0)
+		write(ofd, patches, sizeof(patches));
 	
 	return 0;
 }
