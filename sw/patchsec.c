@@ -82,11 +82,10 @@ int main(int argc, char **argv) {
 			fatp = (unsigned int *)(buf + blk * (ECCBLKSZ + ECCOOBSZ));
 			for (ofs = 0; ofs < (ECCBLKSZ / 4); ofs++) {
 				int fat = fatp[ofs];
-				/* FAT0 at +0x21F6, FAT1 at +0x30FB */
-				int secofs = fat / (512 / 4);
+				int secofs = (fat - 1) / (512 / 4);
 				
 				/* Compensate for position from start of page. */
-				if (ofs >= (256 / 4))
+				if (ofs >= (512 / 4))
 					secofs--;
 				secofs -= blk * 2;
 				
@@ -97,11 +96,15 @@ int main(int argc, char **argv) {
 		
 		voted = votes[0].value;
 		
-		if (voted > 0x1000)
+		if (voted > 0x1000) {
+			pgn++;
 			continue;
+		}
 		
-		if (votes[0].votes < 200)
+		if (votes[0].votes < 200) {
+			pgn++;
 			continue;
+		}
 		
 #if 0
 		{
@@ -125,23 +128,29 @@ int main(int argc, char **argv) {
 			printf("-> fat0 logpg " GREEN "%03x" NORMAL " (%5d votes); cs %d pg %02x", logpg, votes[0].votes, cs, pg);
 		}
 #endif
-		printf("FAT sector offset %03x (F0 %04x, F1 %04x) (%5d votes)", voted, voted + 0x21F6, voted + 0x30FB, votes[0].votes);
+		printf("FAT sector offset %03x (F0 %04x, F1 %04x) (%5d votes) (representative FAT %08x)", voted, voted + 0x21F6, voted + 0x30FB, votes[0].votes, fatp[0]);
 		printf(" (pgn %03x @ %s)\n", pgn, argv[1]);
 		
-		if ((((voted + 0x21F6) & 0xF) == 0x0) || (((voted + 0x30FB) & 0xF) == 0x0)) {
-			int sector = (((voted + 0x21F6) & 0xF) == 0x0) ? (voted + 0x21F6) : (voted + 0x30FB);
-			int i;
-			
-			for (i = 0; i < NPATCHES; i++)
-				if (patches[i].sector == 0 || patches[i].sector == sector)
-					break;
-			if (i == NPATCHES) 
-				printf("*** too many patches!\n");
-			else if (votes[0].votes >= patches[i].confidence) {
-				patches[i].fd = -1;
-				patches[i].confidence = votes[0].votes;
-				patches[i].sector = sector;
-				patches[i].pg = pgn;
+		{
+			int fat0ad = voted + 0x21F6;
+			int fat1ad = voted + 0x30FB;
+			int isfat0 = (fat0ad & 0xF) == 0x0;
+			int isfat1 = (fat1ad & 0xF) == 0x0;
+			if (isfat0 || isfat1) {
+				int sector = isfat0 ? fat0ad : fat1ad;
+				int i;
+				
+				for (i = 0; i < NPATCHES; i++)
+					if (patches[i].sector == 0 || patches[i].sector == sector)
+						break;
+				if (i == NPATCHES) 
+					printf("*** too many patches!\n");
+				else if (votes[0].votes >= patches[i].confidence) {
+					patches[i].fd = -1;
+					patches[i].confidence = votes[0].votes;
+					patches[i].sector = sector;
+					patches[i].pg = pgn;
+				}
 			}
 		}
 
