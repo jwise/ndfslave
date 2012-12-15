@@ -102,40 +102,63 @@ off_t dumpio_pread(struct dumpio *io, char *buf, size_t size, off_t offset) {
 	return retsz;
 }
 
-#define SHIFT do { (*argc)--; (*argv)[1] = (*argv)[0]; (*argv)++; } while(0)
+static char *_fgetln(FILE *fp) {
+	size_t sz;
+	char *l;
+	char *l2;
+	
+	l = fgetln(fp, &sz);
+	if (!l)
+		return NULL;
+	
+	XFAIL((l2 = malloc(sz + 1)) == NULL);
+	strncpy(l2, l, sz);
+	l2[sz] = 0;
+	
+	l = strchr(l2, '\n');
+	if (l)
+		*l = 0;
+	return l2;
+}
 
-struct dumpio *dumpio_init(int *argc, char **argv[]) {
+struct dumpio *dumpio_init(char *conf) {
 	int fd;
 	off_t ofs;
 	struct dumpio *io;
+	FILE *fp;
+	char *namebuf;
 	
+	XFAIL((fp = fopen(conf, "r")) == NULL);
 	XFAIL((io = malloc(sizeof *io)) == NULL);
 	
-	if (*argc < 4) {
-		fprintf(stderr, "usage: %s blocktable cs0 cs1 [+ patchfile patchlist]* fuseoptions...\n", (*argv)[0]);
-		return NULL;
-	}
-	
-	XFAIL((fd = open((*argv)[1], O_RDONLY)) < 0);
+	XFAIL((namebuf = _fgetln(fp)) == NULL && "blocktable");
+	XFAIL((fd = open(namebuf, O_RDONLY)) < 0);
 	ofs = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	XFAIL((io->tab = malloc(ofs)) == NULL);
 	read(fd, io->tab, ofs);
 	close(fd);
 	io->tabsz = ofs / sizeof(struct fwdtab);
+	free(namebuf);
 	
-	XFAIL((io->fd0 = open((*argv)[2], O_RDONLY)) < 0);
-	XFAIL((io->fd1 = open((*argv)[3], O_RDONLY)) < 0);
+	XFAIL((namebuf = _fgetln(fp)) == NULL && "cs0");
+	XFAIL((io->fd0 = open(namebuf, O_RDONLY)) < 0);
+	free(namebuf);
+	XFAIL((namebuf = _fgetln(fp)) == NULL && "cs1");
+	XFAIL((io->fd1 = open(namebuf, O_RDONLY)) < 0);
+	free(namebuf);
 	
-	SHIFT; SHIFT; SHIFT;
-	while (*argc >= 4 && !strcmp((*argv)[1], "+")) {
+	while ((namebuf = _fgetln(fp)) != NULL) {
 		/* load patch files */
 		int pfilfd, plisfd;
 		int i;
 		struct patch thispatches[NPATCHES] = {{0}};
 		
-		XFAIL((pfilfd = open((*argv)[2], O_RDONLY)) < 0);
-		XFAIL((plisfd = open((*argv)[3], O_RDONLY)) < 0);
+		XFAIL((pfilfd = open(namebuf, O_RDONLY)) < 0);
+		free(namebuf);
+		XFAIL((namebuf = _fgetln(fp)) == NULL && "patchlist");
+		XFAIL((plisfd = open(namebuf, O_RDONLY)) < 0);
+		free(namebuf);
 		
 		XFAIL(read(plisfd, thispatches, sizeof(thispatches)) != sizeof(thispatches));
 		for (i = 0; i < NPATCHES; i++) {
@@ -161,9 +184,9 @@ struct dumpio *dumpio_init(int *argc, char **argv[]) {
 		}
 		
 		close(plisfd);
-		
-		SHIFT; SHIFT; SHIFT;
 	}
+	
+	fclose(fp);
 	
 	return io;
 }

@@ -28,6 +28,6 @@ struct dumpio;
 
 off_t dumpio_size(struct dumpio *io);
 off_t dumpio_pread(struct dumpio *io, char *buf, size_t size, off_t offset);
-struct dumpio *dumpio_init(int *argc, char **argv[]);
+struct dumpio *dumpio_init(char *conf);
 
 #endif
