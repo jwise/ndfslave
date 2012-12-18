@@ -168,3 +168,200 @@ More info:
 
 (for i in cs0 cs1; do ./patchsec < flash2.$i.patchblock | while read a; do echo "$a",$i; done; done) | sort | less -R
 
+-----
+
+Next missing:
+/DCIM/31020601/DSC02301.JPG
+  Contains a free cluster (473848). Assuming EOF.
+/DCIM/31020601/DSC02301.JPG
+  File size is 9273344 bytes, cluster chain length is 0 bytes.
+  Truncating file to 0 bytes.
+/DCIM/31020601/DSC02301.ARW
+  Contains a free cluster (474131). Assuming EOF.
+/DCIM/31020601/DSC02301.ARW
+  File size is 17498112 bytes, cluster chain length is 0 bytes.
+  Truncating file to 0 bytes.
+
+List of missing clusters:
+
+maybe 455936? -> BE 0006f500
+467917 -> BE 000723cd
+468436 -> BE 000725d4
+468597 -> BE 00072675
+469116 -> BE 0007287c
+469385 -> BE 00072989
+469919 -> BE 00072b9f
+470187 -> BE 00072cab
+470720 -> BE 00072ec0
+470942 -> BE 00072f9e
+471470 -> BE 000731ae
+471698 -> BE 00073292
+472227 -> BE 000734a3
+472511 -> BE 000735bf
+473045 -> BE 000737d5
+473315 -> BE 000738e3
+473848 -> BE 00073af8
+474131 -> BE 00073c13
+
+Look for datum ce 23 07 00 cd 23
+joshua@nyus:~/flash_fpga/sw$ ./look-for-it < flash2.cs1.fixed
+ad: 1360256 = 14c180
+
+joshua@nyus:~/flash_fpga/sw$ ./look-for-it < flash2.cs0.fixed
+ad: 1360129 = 14c101
+ad: 1360130
+ad: 1360131
+ad: 1360132
+ad: 1360133
+ad: 1360134
+ad: 1360135
+ad: 1360136
+ad: 1360137
+ad: 1360138 = 14c10a
+
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs0.fixed bs=8832 skip=$((0x14c100+$i)) count=1 2>/dev/null | hd | grep 00002230; done | sort | uniq -c
+      8 00002230  9b f2 ff 05 fe 8a 40 9e  a6 e2 09 7d 71 46 21 76  |.òÿ.þ.@.¦â.}qF!v|
+      2 00002230  9b f2 ff 05 ff 37 4b ce  65 bc 41 07 98 a0 5b eb  |.òÿ.ÿ7KÎe¼A.. [ë|
+      2 00002230  9b f2 ff 17 fe 49 0f 3c  3c 54 76 0d 7e f4 f8 4c  |.òÿ.þI.<<Tv.~ôøL|
+      2 00002230  9b f2 ff 7d fe 28 aa 39  a3 52 d2 69 0a 96 89 11  |.òÿ}þ(ª9£RÒi....|
+      6 00002230  9b ff fe 05 fe c4 9c 74  34 f4 2e 3f 2c 74 d4 87  |.ÿþ.þÄ.t4ô.?,tÔ.|
+      6 00002230  9b ff fe 05 ff 79 97 24  f7 aa 66 45 c5 92 ae 1a  |.ÿþ.ÿy.$÷ªfEÅ.®.|
+      2 00002230  9b ff fe 77 fe 11 5d 9f  be b7 75 76 e7 8e 04 4f  |.ÿþwþ.].¾·uvç..O|
+      2 00002230  9b ff fe 7d fe 66 76 d3  31 44 f5 2b 57 a4 7c e0  |.ÿþ}þfvÓ1Dõ+W¤|à|
+     96 00002230  de f2 e9 ff fe b1 23 15  6d e9 d8 bd a2 cd 0a 0e  |Þòéÿþ±#.méØ½¢Í..|
+     14 00002230  de f2 fe ff fe b1 23 15  6d e9 d8 bd a2 cd 0a 0e  |Þòþÿþ±#.méØ½¢Í..|
+      4 00002230  de ff ff ff fe ff ff ff  ff ff ff ff ff cd ff ff  |ÞÿÿÿþÿÿÿÿÿÿÿÿÍÿÿ|
+    112 00002230  de ff ff ff fe ff ff ff  ff ff ff ff ff ff ff ff  |Þÿÿÿþÿÿÿÿÿÿÿÿÿÿÿ|
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs1.fixed bs=8832 skip=$((0x14c100+$i)) count=1 2>/dev/null | hd | grep 00002230; done | sort | uniq -c
+      2 00002230  9b f2 ff 18 fe 05 b1 d6  f4 5e 36 7e 16 cb bc b4  |.òÿ.þ.±Öô^6~.Ë¼´|
+      6 00002230  9b f2 ff 7c fe b1 d7 7d  5c 00 80 e3 c0 9a 53 74  |.òÿ|þ±×}\..ãÀ.St|
+      2 00002230  9b f2 ff 90 fe 5f 85 6f  39 d1 13 38 73 5c 3e 81  |.òÿ.þ_.o9Ñ.8s\>.|
+      2 00002230  9b f2 ff f0 fe 49 0b 26  29 24 37 01 b7 14 37 73  |.òÿðþI.&)$7.·.7s|
+      2 00002230  9b ff fe 04 fe 5d e1 30  cb a6 7c b5 e6 78 0e e2  |.ÿþ.þ]á0Ë¦|µæx.â|
+      2 00002230  9b ff fe 16 fe 9e ae 92  51 10 03 c5 e9 ca d7 d8  |.ÿþ.þ.®.Q..ÅéÊ×Ø|
+      2 00002230  9b ff fe 78 fe 5d e3 75  76 bd 35 05 8f b1 40 b7  |.ÿþxþ]ãuv½5..±@·|
+      6 00002230  9b ff fe 7c fe ff 0b 97  ce 16 a7 a1 9d a8 a6 85  |.ÿþ|þÿ..Î.§¡.¨¦.|
+      2 00002230  9b ff fe 7e ff cd f1 1e  30 b2 02 b4 09 b1 12 4f  |.ÿþ~ÿÍñ.0².´.±.O|
+      2 00002230  9b ff fe 8e fe 88 24 50  3b d3 b4 9c fe 10 42 80  |.ÿþ.þ.$P;Ó´.þ.B.|
+     96 00002230  de f2 e9 ff fe b1 23 15  6d e9 d8 bd a2 cd 0a 0e  |Þòéÿþ±#.méØ½¢Í..|
+     16 00002230  de f2 fe ff fe b1 23 15  6d e9 d8 bd a2 cd 0a 0e  |Þòþÿþ±#.méØ½¢Í..|
+      4 00002230  de ff ff ff fe ff ff ff  ff ff ff ff ff cd ff ff  |ÞÿÿÿþÿÿÿÿÿÿÿÿÍÿÿ|
+    112 00002230  de ff ff ff fe ff ff ff  ff ff ff ff ff ff ff ff  |Þÿÿÿþÿÿÿÿÿÿÿÿÿÿÿ|
+
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 255`; do dd if=flash2.cs0.fixed bs=8832 skip=$((0x14c100+$i)) count=1 | dd bs=8752 count=1; dd if=flash2.cs0 bs=8832 skip=$((0x14c100+$i)) count=1 | dd bs=8752 skip=1; done > flash2.cs0.patchblock2 2>/dev/null
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 255`; do dd if=flash2.cs1.fixed bs=8832 skip=$((0x14c100+$i)) count=1 | dd bs=8752 count=1; dd if=flash2.cs1 bs=8832 skip=$((0x14c100+$i)) count=1 | dd bs=8752 skip=1; done > flash2.cs1.patchblock2 2>/dev/null
+
+joshua@nyus:~/flash_fpga/sw$ ./patchsec flash2.cs0.patchblock2 flash2.cs0.patchlist2                                                                                                                                                         FAT sector offset e45 (F0 303b, F1 3f40) (  782 votes) (representative FAT 00000000) (pgn 000 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) (  932 votes) (representative FAT 00000000) (pgn 001 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1418 votes) (representative FAT 00000000) (pgn 002 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1669 votes) (representative FAT 00072981) (pgn 003 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 004 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 005 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 006 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 007 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 008 @ flash2.cs0.patchblock2)
+FAT sector offset e45 (F0 303b, F1 3f40) ( 1900 votes) (representative FAT 00072981) (pgn 009 @ flash2.cs0.patchblock2)
+FAT sector offset e4a (F0 3040, F1 3f45) ( 1900 votes) (representative FAT 00072c01) (pgn 00a @ flash2.cs0.patchblock2)
+FAT sector offset e4a (F0 3040, F1 3f45) ( 1900 votes) (representative FAT 00072c01) (pgn 00b @ flash2.cs0.patchblock2)
+FAT sector offset 005 (F0 21fb, F1 3100) ( 1888 votes) (representative FAT 00000981) (pgn 00c @ flash2.cs0.patchblock2)
+FAT sector offset c05 (F0 2dfb, F1 3d00) ( 1900 votes) (representative FAT 00060981) (pgn 00d @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) (  255 votes) (representative FAT 00000000) (pgn 084 @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) (  505 votes) (representative FAT 00000000) (pgn 085 @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) ( 1004 votes) (representative FAT 00000000) (pgn 086 @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) ( 1212 votes) (representative FAT 00000000) (pgn 087 @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) ( 1706 votes) (representative FAT 00073181) (pgn 088 @ flash2.cs0.patchblock2)
+FAT sector offset e55 (F0 304b, F1 3f50) ( 1902 votes) (representative FAT 00073181) (pgn 089 @ flash2.cs0.patchblock2)
+FAT sector offset e5a (F0 3050, F1 3f55) ( 1815 votes) (representative FAT 00073401) (pgn 08a @ flash2.cs0.patchblock2)
+FAT sector offset e5a (F0 3050, F1 3f55) ( 1902 votes) (representative FAT 00073401) (pgn 08b @ flash2.cs0.patchblock2)
+FAT sector offset 015 (F0 220b, F1 3110) ( 1892 votes) (representative FAT 00001181) (pgn 08c @ flash2.cs0.patchblock2)
+FAT sector offset c15 (F0 2e0b, F1 3d10) ( 1906 votes) (representative FAT 00061181) (pgn 08d @ flash2.cs0.patchblock2)
+joshua@nyus:~/flash_fpga/sw$ ./patchsec flash2.cs1.patchblock2 flash2.cs1.patchlist2
+FAT sector offset e6a (F0 3060, F1 3f65) (  664 votes) (representative FAT 00000000) (pgn 002 @ flash2.cs1.patchblock2)
+FAT sector offset e6a (F0 3060, F1 3f65) (  916 votes) (representative FAT 00000000) (pgn 003 @ flash2.cs1.patchblock2)
+FAT sector offset e6a (F0 3060, F1 3f65) ( 1415 votes) (representative FAT 00000000) (pgn 004 @ flash2.cs1.patchblock2)
+FAT sector offset e6a (F0 3060, F1 3f65) ( 1679 votes) (representative FAT 00073c01) (pgn 005 @ flash2.cs1.patchblock2)
+FAT sector offset e6a (F0 3060, F1 3f65) ( 1901 votes) (representative FAT 00073c01) (pgn 006 @ flash2.cs1.patchblock2)
+FAT sector offset bea (F0 2de0, F1 3ce5) ( 1906 votes) (representative FAT 0005fc01) (pgn 009 @ flash2.cs1.patchblock2)
+FAT sector offset c2a (F0 2e20, F1 3d25) ( 1902 votes) (representative FAT 00061c01) (pgn 00a @ flash2.cs1.patchblock2)
+FAT sector offset be5 (F0 2ddb, F1 3ce0) ( 1906 votes) (representative FAT 0005f981) (pgn 00b @ flash2.cs1.patchblock2)
+FAT sector offset c25 (F0 2e1b, F1 3d20) ( 1902 votes) (representative FAT 00061981) (pgn 00c @ flash2.cs1.patchblock2)
+FAT sector offset e3a (F0 3030, F1 3f35) ( 1900 votes) (representative FAT 00072401) (pgn 07f @ flash2.cs1.patchblock2)
+FAT sector offset e7a (F0 3070, F1 3f75) (  264 votes) (representative FAT 00000000) (pgn 086 @ flash2.cs1.patchblock2)
+FAT sector offset bfa (F0 2df0, F1 3cf5) ( 1892 votes) (representative FAT 00060401) (pgn 089 @ flash2.cs1.patchblock2)
+FAT sector offset c3a (F0 2e30, F1 3d35) ( 1891 votes) (representative FAT 00062401) (pgn 08a @ flash2.cs1.patchblock2)
+FAT sector offset bf5 (F0 2deb, F1 3cf0) ( 1898 votes) (representative FAT 00060181) (pgn 08b @ flash2.cs1.patchblock2)
+FAT sector offset c35 (F0 2e2b, F1 3d30) ( 1895 votes) (representative FAT 00062181) (pgn 08c @ flash2.cs1.patchblock2)
+
+That brings me closer.  Still having issues:
+
+/DCIM/31020601/DSC02279.ARW
+  missing 455936? -> BE 0006f500
+/DCIM/31020601/DSC02279.ARW
+  File size is 16515072 bytes, cluster chain length is 7471104 bytes.
+  Truncating file to 7471104 bytes.
+/MP_ROOT/309MNV01/M4H02203.MP4
+  File size is 484739781 bytes, cluster chain length is > 484769792 bytes.
+  Truncating file to 484739781 bytes.
+  but: Reclaimed 137 unused clusters (4489216 bytes).
+  maybe a bad powerdown?
+  needs some intoing, I guess
+/.fseventsd/fseventsd-uuid, interestingly:
+  400839
+  394014
+  400838
+  can't do anything about them, since they're so small
+
+Free cluster summary wrong (76729 vs. really 17744)
+  probably a sector update somewhere, but I don't care enough to find it
+
+looking for: 01 f5 06 00 02 f5
+
+Oh fuck it is not there :<
+
+01 f5 06 00:
+joshua@nyus:~/flash_fpga/sw$ ./look-for-it < flash2.cs0.fixed
+ad: 200169
+ad: 1350941 = 149d1d
+ad: 1418227 = 15a3f3
+ad: 1439128 = 15f597
+joshua@nyus:~/flash_fpga/sw$ ./look-for-it < flash2.cs1.fixed
+ad: 1147462 = 118246
+ad: 1147501 = 11826d
+ad: 1147502 = 11826e
+ad: 1395250 = 154a32
+ad: 1424184 = 15bb38
+
+118200 could be a misc block:
+joshua@nyus:~/flash_fpga/sw$ for i in `seq 0 255`; do dd if=flash2.cs1.fixed bs=8832 skip=$((0x118200+$i)) count=1 2>/dev/null | hd | grep 00002230; done | sort | uniq -c
+      2 00002230  9a f2 e8 06 fe ca 36 8f  3b a2 1b 5d 27 9c e5 66  |.òè.þÊ6.;¢.]'.åf|
+     26 00002230  9a f2 e8 08 fe 1f f5 21  0c fa 09 a4 85 af 7b fb  |.òè.þ.õ!.ú.¤.¯{û|
+      4 00002230  9a f2 e8 0c fe bd 1d c3  b4 51 9b 00 97 b6 9d c9  |.òè.þ½.Ã´Q...¶.É|
+      2 00002230  9a f2 e8 0e fe 32 ec 1a  89 ab 76 6f ea 49 53 9e  |.òè.þ2ì..«voêIS.|
+     14 00002230  9a f2 e8 7e fe 68 dc 28  3e 12 c0 49 5c 4c 4d 01  |.òè~þhÜ(>.ÀI\LM.|
+      2 00002230  9a f2 e8 80 fe 45 c1 98  c1 75 2c e2 e0 38 f9 ce  |.òè.þEÁ.Áu,âà8ùÎ|
+      4 00002230  9a f2 e8 82 fe ca 30 41  fc 8f c1 8d 9d c7 37 99  |.òè.þÊ0Aü.Á..Ç7.|
+     12 00002230  9a f2 e8 84 fe e7 29 7a  79 de be 46 f2 21 1f fc  |.òè.þç)zyÞ¾Fò!.ü|
+     30 00002230  9a f2 e8 86 fe 68 d8 a3  44 24 53 29 8f de d1 ab  |.òè.þhØ£D$S).ÞÑ«|
+     10 00002230  9a f2 ff 08 fe 1f f5 21  0c fa 09 a4 85 af 7b fb  |.òÿ.þ.õ!.ú.¤.¯{û|
+      4 00002230  9a f2 ff 0a fe 90 04 f8  31 00 e4 cb f8 50 b5 ac  |.òÿ.þ..ø1.äËøPµ¬|
+      4 00002230  9a f2 ff 0e fe 32 ec 1a  89 ab 76 6f ea 49 53 9e  |.òÿ.þ2ì..«voêIS.|
+      2 00002230  9a f2 ff 86 fe 68 d8 a3  44 24 53 29 8f de d1 ab  |.òÿ.þhØ£D$S).ÞÑ«|
+      8 00002230  9a f2 ff 88 ff 00 10 5d  b0 22 09 aa c4 0b 35 ab  |.òÿ.ÿ..]°".ªÄ.5«|
+     34 00002230  9a ff fe 08 fe 51 29 cb  9e ec 2e e6 d8 9d 8e 0a  |.ÿþ.þQ)Ë.ì.æØ...|
+      2 00002230  9a ff fe 0a fe de d8 12  a3 16 c3 89 a5 62 40 5d  |.ÿþ.þÞØ.£.Ã.¥b@]|
+      2 00002230  9a ff fe 0c fe f3 c1 29  26 47 bc 42 ca 84 68 38  |.ÿþ.þóÁ)&G¼BÊ.h8|
+      6 00002230  9a ff fe 0e fe 7c 30 f0  1b bd 51 2d b7 7b a6 6f  |.ÿþ.þ|0ð.½Q-·{¦o|
+      2 00002230  9a ff fe 10 ff 58 46 75  48 f7 99 b1 8e e3 55 02  |.ÿþ.ÿXFuH÷.±.ãU.|
+      2 00002230  9a ff fe 7e fe 26 00 c2  ac 04 e7 0b 01 4c b8 f0  |.ÿþ~þ&.Â¬.ç..L¸ð|
+     16 00002230  9a ff fe 7e fe 26 00 c2  ac 04 e7 0b 01 7e b8 f0  |.ÿþ~þ&.Â¬.ç..~¸ð|
+      4 00002230  9a ff fe 80 fe 0b 1d 72  53 63 0b a0 bd 0a 0c 3f  |.ÿþ.þ..rSc. ½..?|
+      2 00002230  9a ff fe 82 fe 84 ec ab  6e 99 e6 cf c0 c7 c2 68  |.ÿþ.þ.ì«n.æÏÀÇÂh|
+      8 00002230  9a ff fe 82 fe 84 ec ab  6e 99 e6 cf c0 f5 c2 68  |.ÿþ.þ.ì«n.æÏÀõÂh|
+     14 00002230  9a ff fe 84 fe a9 f5 90  eb c8 99 04 af 13 ea 0d  |.ÿþ.þ©õ.ëÈ..¯.ê.|
+     32 00002230  9a ff fe 86 fe 26 04 49  d6 32 74 6b d2 ec 24 5a  |.ÿþ.þ&.IÖ2tkÒì$Z|
+      8 00002230  9a ff fe 88 ff 4e cc b7  22 34 2e e8 99 39 c0 5a  |.ÿþ.ÿNÌ·"4.è.9ÀZ|
+
+patchsec indicates it may be...
+
+note that 118200 is in pages-missing-content, too
+
