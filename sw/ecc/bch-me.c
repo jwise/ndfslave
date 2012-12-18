@@ -30,11 +30,15 @@ int main(int argc, unsigned char **argv) {
 	int fd;
 	size_t keyp = 0;
 	struct bch_control *bch;
+	int verbose = 0;
 	
-	if (argc != 2) {
+	if (argc != 2 && argc != 3) {
 		fprintf(stderr, "usage: %s keyfile\n", argv[0]);
 		return 1;
 	}
+	
+	if (argc == 3)
+		verbose = atoi(argv[2]);
 	
 	XFAIL((fd = open(argv[1], O_RDONLY)) < 0);
 	keylen = lseek64(fd, 0, SEEK_END);
@@ -119,7 +123,7 @@ int main(int argc, unsigned char **argv) {
 			pkts++;
 		}
 		
-		if (uncor != 0 && uncor != subpg)
+		if (uncor != 0 && (uncor != subpg || verbose > 0))
 			fprintf(stderr, "*** %d uncorrectable ECC errors at page %d\n", uncor, pgs);
 		if (uncor == subpg)
 			nonpgs++;
