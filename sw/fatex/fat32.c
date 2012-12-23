@@ -188,6 +188,7 @@ int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de)
 int fat32_get_next_cluster(struct fat32_handle *h, int cluster)
 {
 	static unsigned int buf[128 /* 512 / 4 */];
+	unsigned int clust;
 	
 	if (_read_sector(h->io, FAT32_FAT0_SECTOR(h) + cluster / 128, (unsigned int *) buf))
 	{
@@ -195,7 +196,23 @@ int fat32_get_next_cluster(struct fat32_handle *h, int cluster)
 		return 0xFFFFFF7;	/* bad sector */
 	}
 	
-	return buf[cluster % 128] & 0xFFFFFFF;
+	clust = buf[cluster % 128] & 0xFFFFFFF;
+	if (clust != 0)
+		return clust;
+	
+	printf("FAT32: WARNING: unallocated cluster?  Trying backup FAT\n");
+	
+	if (_read_sector(h->io, FAT32_FAT1_SECTOR(h) + cluster / 128, (unsigned int *) buf))
+	{
+		puts("failed to read FAT!");
+		return 0xFFFFFF7;	/* bad sector */
+	}
+	
+	clust = buf[cluster % 128] & 0xFFFFFFF;
+	if (clust == 0)
+		printf("FAT32: Oh well.\n");
+
+	return clust;
 }
 
 void fat32_open_root(struct fat32_handle *h, struct fat32_file *fd)
