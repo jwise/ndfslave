@@ -92,7 +92,7 @@ int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de)
 	
 	while (fat32_read(fd, &der, sizeof(der)) == sizeof(der))
 	{
-		if (der.name[0] == 0x00 || der.name[0] == 0x05 || der.name[0] == 0xE5)
+		if (der.name[0] == 0x00 || der.name[0] == 0x05 || der.name[0] == 0xE5 || der.name[0] == '.')
 		{
 			has_lfn = 0;
 			continue;
@@ -171,6 +171,8 @@ int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de)
 		de->attrib = der.attrib;
 		de->size = der.size[0] | ((unsigned int)der.size[1] << 8) |
 		           ((unsigned int)der.size[2] << 16) | ((unsigned int)der.size[3] << 24);
+		if (der.attrib & FAT32_ATTRIB_DIRECTORY)
+			de->size = 0xFFFFFFFF;
 		de->cluster = der.clust_lo[0] | ((unsigned int)der.clust_lo[1] << 8) |
 	                      ((unsigned int)der.clust_hi[0] << 16) | ((unsigned int)der.clust_hi[1] << 24);
 		return 0;

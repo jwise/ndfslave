@@ -21,10 +21,10 @@ enum {
 #define SHIFT do { argv[1] = argv[0]; argc--; argv++; } while(0)
 #define XFAIL(p) do { if (p) { fprintf(stderr, "%s (%s:%d): operation failed: %s\n", __FUNCTION__, __FILE__, __LINE__, #p); abort(); } } while(0)
 
+int flags = 0;
+
 int main(int argc, char *argv[])
 {
-	int flags = 0;
-	
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s mode ...\n", argv[0]);
 		return 1;
@@ -77,12 +77,39 @@ int main(int argc, char *argv[])
 	
 	XFAIL(fat32_open(&h, _io, p));
 	
-	struct fat32_dirent de;
 	struct fat32_file fd;
+	char **paths = NULL;
+	int npaths = 0;
 	
 	fat32_open_root(&h, &fd);
-	while (fat32_readdir(&fd, &de) == 0)
-		printf("%s\n", de.name);
+	
+	void recurs(struct fat32_handle *h, struct fat32_file *fd, char ***paths, int *npaths, int lvl);
+	recurs(&h, &fd, &paths, &npaths, 0);
 	
 	return 0;
+}
+
+void recurs(struct fat32_handle *h, struct fat32_file *fd, char ***paths, int *npaths, int lvl) {
+	struct fat32_file fd2;
+	struct fat32_dirent de;
+	
+	while (fat32_readdir(fd, &de) == 0) {
+		int i;
+		
+		if (flags & FL_VERBOSE)
+			printf("%crwx\t@%08x\tsz %10d\t", de.attrib & FAT32_ATTRIB_DIRECTORY ? 'd' : '-', de.cluster, de.size == 0xffffffff ? 0 : de.size);
+		for (i = 0; i < lvl; i++)
+			printf("%s/", (*paths)[i]);
+		printf("%s%s\n", de.name, de.attrib & FAT32_ATTRIB_DIRECTORY ? "/" : "");
+			
+		if (de.attrib & FAT32_ATTRIB_DIRECTORY) {
+			fat32_open_by_de(h, &fd2, &de);
+			if (lvl+1 > *npaths) {
+				*paths = realloc(*paths, (*npaths+1) * 2);
+				*npaths = (*npaths+1) * 2;
+			}
+			(*paths)[lvl] = de.name;
+			recurs(h, &fd2, paths, npaths, lvl+1);
+		}
+	}
 }
