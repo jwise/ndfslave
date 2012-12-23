@@ -13,6 +13,12 @@
 #define pread64 pread
 #endif
 
+#ifdef DUMPIO_DEBUG
+#  define DEBUG(...) fprintf(stderr, __VA_ARGS)
+#else
+#  define DEBUG(...)
+#endif
+
 struct dumpio {
 	struct fwdtab *tab;
 	int tabsz;
@@ -43,11 +49,11 @@ static int _read_a_little(struct dumpio *io, char *buf, size_t size, off_t offse
 	
 	block = offset / (off_t)(SECBLOCK * SECCNT * BLOCKSZ);
 	if (io->tab[block].confidence < 0) {
-		fprintf(stderr, "*** no mapping for block %04x\n", block);
+		DEBUG("*** no mapping for block %04x\n", block);
 		memset(buf, 0, size);
 		return size;
 	}
-	fprintf(stderr, "  rq for block %04x, phys %04x, confidence %d\n", block, io->tab[block].phys, io->tab[block].confidence);
+	DEBUG("  rq for block %04x, phys %04x, confidence %d\n", block, io->tab[block].phys, io->tab[block].confidence);
 	
 	phys = io->tab[block].phys;
 	sec = offset % (off_t)(SECBLOCK * SECCNT) / (off_t)SECBLOCK;
@@ -56,7 +62,7 @@ static int _read_a_little(struct dumpio *io, char *buf, size_t size, off_t offse
 	for (i = 0; i < NPATCHES; i++)
 		if (io->patches[i].sector && ((io->patches[i].sector / 0x10) == (offset / (512 * 0x10)))) {
 			/* we have a patch... */
-			fprintf(stderr, "  applying patch from fd %d, pg %x for sector %x\n", io->patches[i].fd, io->patches[i].pg, io->patches[i].sector);
+			DEBUG("  applying patch from fd %d, pg %x for sector %x\n", io->patches[i].fd, io->patches[i].pg, io->patches[i].sector);
 			return pread64(io->patches[i].fd, buf, size,
 			               io->patches[i].pg * PAGESZ +
 			               sec * (SECBLOCK + ECCSZ) +
@@ -70,7 +76,7 @@ static int _read_a_little(struct dumpio *io, char *buf, size_t size, off_t offse
 	cs = pg & 1;
 	pg = pg >> 1;
 	
-	fprintf(stderr, "    offset %08llx -> virtblock %04x, cs %d, pg %02x, sec %d, secofs %02x\n", offset, block, cs, pg, sec, secofs);
+	DEBUG("    offset %08llx -> virtblock %04x, cs %d, pg %02x, sec %d, secofs %02x\n", offset, block, cs, pg, sec, secofs);
 
 	return pread64(cs ? io->fd1 : io->fd0,
 	               buf, size,
@@ -86,7 +92,7 @@ off_t dumpio_size(struct dumpio *io) {
 off_t dumpio_pread(struct dumpio *io, char *buf, size_t size, off_t offset) {
 	size_t retsz = 0;
 	
-	fprintf(stderr, "read request: offset %08llx, size %08lx\n", offset, size);
+	DEBUG("read request: offset %08llx, size %08lx\n", offset, size);
 	while (size) {
 		int rv;
 		
@@ -176,7 +182,7 @@ struct dumpio *dumpio_init(char *conf) {
 				break;
 			}
 			if (thispatches[i].confidence > io->patches[j].confidence) {
-				fprintf(stderr, "installing patch: sector %x -> fd %d, pg %x\n", thispatches[i].sector, pfilfd, thispatches[i].pg);
+				DEBUG("installing patch: sector %x -> fd %d, pg %x\n", thispatches[i].sector, pfilfd, thispatches[i].pg);
 				io->patches[j].sector = thispatches[i].sector;
 				io->patches[j].pg = thispatches[i].pg;
 				io->patches[j].confidence = thispatches[i].confidence;
