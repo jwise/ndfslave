@@ -130,6 +130,7 @@ struct dumpio *dumpio_init(char *conf) {
 	
 	XFAIL((fp = fopen(conf, "r")) == NULL);
 	XFAIL((io = malloc(sizeof *io)) == NULL);
+	memset(io, 0, sizeof *io);
 	
 	XFAIL((namebuf = _fgetln(fp)) == NULL && "blocktable");
 	XFAIL((fd = open(namebuf, O_RDONLY)) < 0);
