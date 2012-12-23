@@ -63,19 +63,40 @@ struct fat32_bootsect {
 #define FAT32_ATTRIB_LFN 0x0F
 #define FAT32_ATTRIB_DIRECTORY 0x10
 
+union fat32_dirent_raw {
+	struct {
+		unsigned char name[8];
+		unsigned char ext[3];
+		unsigned char attrib;
+		unsigned char reserved;
+		unsigned char ctime[3];
+		unsigned char cdate[2];
+		unsigned char adate[2];
+		unsigned char clust_hi[2];
+		unsigned char mtime[2];
+		unsigned char mdate[2];
+		unsigned char clust_lo[2];
+		unsigned char size[4];
+	};
+	
+	struct {
+		unsigned char lfn_seq;
+		unsigned char lfn_name0[10];
+		unsigned char lfn_attrib;
+		unsigned char lfn_type;
+		unsigned char lfn_checksum;
+		unsigned char lfn_name1[12];
+		unsigned char lfn_clust_lo[2];
+		unsigned char lfn_name2[4];
+	};
+};
+
+#define FAT32_NAMEENTS_MAX 20
 struct fat32_dirent {
-	unsigned char name[8];
-	unsigned char ext[3];
+	char name[FAT32_NAMEENTS_MAX * 13 + 1];
 	unsigned char attrib;
-	unsigned char reserved;
-	unsigned char ctime[3];
-	unsigned char cdate[2];
-	unsigned char adate[2];
-	unsigned char clust_hi[2];
-	unsigned char mtime[2];
-	unsigned char mdate[2];
-	unsigned char clust_lo[2];
-	unsigned char size[4];
+	unsigned int size;
+	unsigned int cluster;
 };
 
 struct fat32_file {
@@ -89,10 +110,10 @@ struct fat32_file {
 extern int fat32_find_partition(struct dumpio *dump);
 extern int fat32_open(struct fat32_handle *h, struct dumpio *dump, int start);
 extern void fat32_open_root(struct fat32_handle *h, struct fat32_file *fd);
-extern void fat32_ls_root(struct fat32_handle *h, void (*cbfn)(struct fat32_handle *, struct fat32_dirent *, void *), void *priv);
 extern int fat32_get_next_cluster(struct fat32_handle *h, int cluster);
 extern void fat32_open_by_de(struct fat32_handle *h, struct fat32_file *fd, struct fat32_dirent *de);
 extern int fat32_open_by_name(struct fat32_handle *h, struct fat32_file *fd, char *name);
 extern int fat32_read(struct fat32_file *fd, void *buf, int len);
+extern int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de);
 
 #endif

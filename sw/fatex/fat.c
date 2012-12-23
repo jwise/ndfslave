@@ -21,13 +21,6 @@ enum {
 #define SHIFT do { argv[1] = argv[0]; argc--; argv++; } while(0)
 #define XFAIL(p) do { if (p) { fprintf(stderr, "%s (%s:%d): operation failed: %s\n", __FUNCTION__, __FILE__, __LINE__, #p); abort(); } } while(0)
 
-void cbfn(struct fat32_handle *hh, struct fat32_dirent *de, void *priv) {
-       	if (de->name[0] == 0x00 || de->name[0] == 0x05 || de->name[0] == 0xE5 || ((de->attrib & FAT32_ATTRIB_LFN) == FAT32_ATTRIB_LFN))
-       		return;
-
-	printf("%.8s.%.3s\n", de->name, de->ext);
-}
-
 int main(int argc, char *argv[])
 {
 	int flags = 0;
@@ -84,7 +77,12 @@ int main(int argc, char *argv[])
 	
 	XFAIL(fat32_open(&h, _io, p));
 	
-	fat32_ls_root(&h, cbfn, NULL);
+	struct fat32_dirent de;
+	struct fat32_file fd;
+	
+	fat32_open_root(&h, &fd);
+	while (fat32_readdir(&fd, &de) == 0)
+		printf("%s\n", de.name);
 	
 	return 0;
 }

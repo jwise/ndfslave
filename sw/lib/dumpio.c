@@ -86,7 +86,7 @@ off_t dumpio_size(struct dumpio *io) {
 off_t dumpio_pread(struct dumpio *io, char *buf, size_t size, off_t offset) {
 	size_t retsz = 0;
 	
-	printf("read request: offset %08llx, size %08lx\n", offset, size);
+	fprintf(stderr, "read request: offset %08llx, size %08lx\n", offset, size);
 	while (size) {
 		int rv;
 		
@@ -171,11 +171,11 @@ struct dumpio *dumpio_init(char *conf) {
 				if (io->patches[j].sector == 0 || io->patches[j].sector == thispatches[i].sector)
 					break;
 			if (j == NPATCHES * 2) {
-				printf("*** patch table full!\n");
+				fprintf(stderr, "*** patch table full!\n");
 				break;
 			}
 			if (thispatches[i].confidence > io->patches[j].confidence) {
-				printf("installing patch: sector %x -> fd %d, pg %x\n", thispatches[i].sector, pfilfd, thispatches[i].pg);
+				fprintf(stderr, "installing patch: sector %x -> fd %d, pg %x\n", thispatches[i].sector, pfilfd, thispatches[i].pg);
 				io->patches[j].sector = thispatches[i].sector;
 				io->patches[j].pg = thispatches[i].pg;
 				io->patches[j].confidence = thispatches[i].confidence;

@@ -84,16 +84,99 @@ int fat32_open(struct fat32_handle *h, struct dumpio *io, int start)
 	return 0;
 }
 
-/* should be int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de) */
-
-void fat32_ls_root(struct fat32_handle *h, void (*cbfn)(struct fat32_handle *, struct fat32_dirent *, void *), void *priv)
+int fat32_readdir(struct fat32_file *fd, struct fat32_dirent *de)
 {
-	struct fat32_dirent de;
-	struct fat32_file fd;
+	union fat32_dirent_raw der;
+	int has_lfn = 0;
+	unsigned char lfn_checksum;
 	
-	fat32_open_root(h, &fd);
-	while (fat32_read(&fd, &de, sizeof(de)) == sizeof(de))
-		cbfn(h, &de, priv);
+	while (fat32_read(fd, &der, sizeof(der)) == sizeof(der))
+	{
+		if (der.name[0] == 0x00 || der.name[0] == 0x05 || der.name[0] == 0xE5)
+		{
+			has_lfn = 0;
+			continue;
+		}
+		
+		if ((der.attrib & FAT32_ATTRIB_LFN) == FAT32_ATTRIB_LFN)
+		{
+			int seq;
+			
+			seq = (der.lfn_seq & 0x3F) - 1;
+			if (seq >= FAT32_NAMEENTS_MAX)
+			{
+				printf("FAT32: excessively large LFN sequence 0x%02x\n", der.lfn_seq);
+				continue;
+			}
+			
+			/* XXX check for oversized unicode */
+			de->name[seq * 13 +  0] = der.lfn_name0[0];
+			de->name[seq * 13 +  1] = der.lfn_name0[2];
+			de->name[seq * 13 +  2] = der.lfn_name0[4];
+			de->name[seq * 13 +  3] = der.lfn_name0[6];
+			de->name[seq * 13 +  4] = der.lfn_name0[8];
+			de->name[seq * 13 +  5] = der.lfn_name1[0];
+			de->name[seq * 13 +  6] = der.lfn_name1[2];
+			de->name[seq * 13 +  7] = der.lfn_name1[4];
+			de->name[seq * 13 +  8] = der.lfn_name1[6];
+			de->name[seq * 13 +  9] = der.lfn_name1[8];
+			de->name[seq * 13 + 10] = der.lfn_name1[10];
+			de->name[seq * 13 + 11] = der.lfn_name2[0];
+			de->name[seq * 13 + 12] = der.lfn_name2[2];
+			
+			if (der.lfn_seq & 0x40)
+				de->name[seq * 13 + 13] = 0;
+			
+			has_lfn = 1;
+			lfn_checksum = der.lfn_checksum;
+			continue;
+		}
+		
+		if (has_lfn)
+		{
+			/* Verify the LFN checksum. */
+			unsigned char sum = 0;
+			int i;
+			
+			for (i = 0; i < 11; i++)
+				sum = ((sum & 1) << 7) + (sum >> 1) + der.name[i];
+			
+			if (sum != lfn_checksum)
+			{
+				printf("FAT32: LFN checksum mismatch (expected %02x, got %02x)\n", lfn_checksum, sum);
+				has_lfn = 0;
+			}
+		}
+		
+		if (!has_lfn)
+		{
+			int i;
+			
+			for (i = 0; i < 8; i++)
+			{
+				if (der.name[i] == ' ')
+					break;
+				de->name[i] = der.name[i];
+			}
+			if (der.ext[0] != ' ')
+			{
+				de->name[i++] = '.';
+				de->name[i++] = der.ext[0];
+				de->name[i++] = der.ext[1];
+				de->name[i++] = der.ext[2];
+			}
+			de->name[i++] = 0;
+		}
+		
+		de->attrib = der.attrib;
+		de->size = der.size[0] | ((unsigned int)der.size[1] << 8) |
+		           ((unsigned int)der.size[2] << 16) | ((unsigned int)der.size[3] << 24);
+		de->cluster = der.clust_lo[0] | ((unsigned int)der.clust_lo[1] << 8) |
+	                      ((unsigned int)der.clust_hi[0] << 16) | ((unsigned int)der.clust_hi[1] << 24);
+		return 0;
+	}
+	
+	return -1;
 }
 
 int fat32_get_next_cluster(struct fat32_handle *h, int cluster)
@@ -122,13 +205,12 @@ void fat32_open_by_de(struct fat32_handle *h, struct fat32_file *fd, struct fat3
 {
 	fd->h = h;
 	fd->pos = 0;
-	fd->start_cluster = de->clust_lo[0] | ((unsigned int)de->clust_lo[1] << 8) |
-	                    ((unsigned int)de->clust_hi[0] << 16) | ((unsigned int)de->clust_hi[1] << 24);
+	fd->start_cluster = de->cluster;
 	fd->cluster = fd->start_cluster;
-	fd->len = de->size[0] | ((unsigned int)de->size[1] << 8) |
-	          ((unsigned int)de->size[2] << 16) | ((unsigned int)de->size[3] << 24);
+	fd->len = de->size;
 }
 
+#if 0
 struct _open_by_name_priv {
 	unsigned char fnameext[12];
 	struct fat32_file *fd;
@@ -162,6 +244,7 @@ int fat32_open_by_name(struct fat32_handle *h, struct fat32_file *fd, char *name
 	
 	return priv.found ? 0 : -1;
 }
+#endif
 
 int fat32_read(struct fat32_file *fd, void *buf, int len)
 {
