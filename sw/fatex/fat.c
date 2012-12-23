@@ -1,6 +1,8 @@
 #define _LARGEFILE64_SOURCE
 
 #include <sys/types.h>
+#include <sys/stat.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -16,6 +18,7 @@ enum {
 	FL_LIST = 2,
 	FL_EXTRACT = 4,
 	FL_VERBOSE = 8,
+	FL_CHDIR = 16,
 };
 
 #define SHIFT do { argv[1] = argv[0]; argc--; argv++; } while(0)
@@ -67,6 +70,33 @@ int main(int argc, char *argv[])
 	XFAIL((_io = dumpio_init(argv[1])) == NULL);
 	SHIFT;
 	
+	if (argc > 1 && argv[1][0] == '-') {
+		argv[1]++;
+		while (*argv[1]) {
+			switch (*argv[1]) {
+			case 'C':
+				flags |= FL_CHDIR;
+				break;
+			default:
+				fprintf(stderr, "%s: unknown flag '%c'\n", argv[0], *argv[1]);
+				break;
+			}
+			argv[1]++;
+		}
+		SHIFT;
+	}
+	if (flags & FL_CHDIR) {
+		if (argc < 2) {
+			fprintf(stderr, "%s: no dir arg?\n", argv[0]);
+			return 1;
+		}
+		if (chdir(argv[1]) < 0) {
+			fprintf(stderr, "%s: failed to chdir(%s): %s\n", argv[0], argv[1], strerror(errno));
+			return 2;
+		}
+		SHIFT;
+	}
+	
 	/* off_t dumpio_pread(io, buf, sz, off) */
 	/* off_t dumpio_size */
 	
@@ -108,7 +138,41 @@ void recurs(struct fat32_handle *h, struct fat32_file *fd, char ***paths, int *n
 				*npaths = (*npaths+1) * 2;
 			}
 			(*paths)[lvl] = de.name;
+			
+			if (flags & FL_EXTRACT) {
+				mkdir(de.name, 0755);
+				if (chdir(de.name) < 0) {
+					perror("chdir");
+					continue;
+				}
+			}
+			
 			recurs(h, &fd2, paths, npaths, lvl+1);
+			
+			if (flags & FL_EXTRACT)
+				chdir("..");
+		} else if (flags & FL_EXTRACT) {
+			char buf[8192];
+			int rfd;
+			
+			fat32_open_by_de(h, &fd2, &de);
+			rfd = creat(de.name, 0644);
+			if (rfd < 0) {
+				perror("creat");
+				continue;
+			}
+			/* :opens_boxes -3
+			   :fu -100 */
+			while (fd2.pos != fd2.len) {
+				int thislen = (8192 > (fd2.len - fd2.pos)) ? fd2.len - fd2.pos : 8192;
+				
+				if (fat32_read(&fd2, buf, thislen) < thislen) {
+					fprintf(stderr, "EXTRACT ERROR: short read: %d bytes read out of %d\n", fd2.pos, fd2.len); 
+					break;
+				}
+				write(rfd, buf, thislen);
+			}
+			close(rfd);
 		}
 	}
 }
