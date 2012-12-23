@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "fat.h"
 
 #define FAT32_FAT0_SECTOR(h) ((h)->start + (h)->reserved_sector_count)
@@ -80,6 +81,9 @@ int fat32_open(struct fat32_handle *h, struct dumpio *io, int start)
         	printf("FAT32: invalid number of bytes per sector\r\n");
         	return -1;
 	}
+	
+	h->cache_cluster = -1;
+	h->cache_data = malloc(h->sectors_per_cluster * 512);
 	
 	return 0;
 }
@@ -248,10 +252,11 @@ int fat32_open_by_name(struct fat32_handle *h, struct fat32_file *fd, char *name
 }
 #endif
 
+
+
 int fat32_read(struct fat32_file *fd, void *buf, int len)
 {
 	int retlen = 0;
-	
 
 #ifdef DEBUG
 	printf("FAT32: called with len: %d\r\n", len);
@@ -274,32 +279,18 @@ int fat32_read(struct fat32_file *fd, void *buf, int len)
 		
 		cluslen = (rem > len) ? len : rem;
 		
-		while (cluslen)
+		if (fd->h->cache_cluster != fd->cluster)
 		{
-			static unsigned char secbuf[512];
-			int seclen = 512 - fd->pos % 512;
-			seclen = (seclen > cluslen) ? cluslen : seclen;
-			
-			int secnum = FAT32_CLUSTER(fd->h, fd->cluster) + (fd->pos / 512) % fd->h->sectors_per_cluster;
-#ifdef DEBUG
-			printf("FAT32: bytes remaining in cluster: %d\r\n", cluslen);
-			printf("FAT32: reading from sector %d\r\n", secnum);
-#endif
-			
-			if (_read_sector(fd->h->io, secnum, (unsigned int *)secbuf))
-			{
-				puts("failed to read sector!");
-				return retlen ? retlen : -1;
-			}
-			
-			memcpy(buf, secbuf + fd->pos % 512, seclen);
-			
-			retlen += seclen;
-			buf += seclen;
-			fd->pos += seclen;
-			cluslen -= seclen;
-			len -= seclen;
+			if (dumpio_pread(fd->h->io, fd->h->cache_data, FAT32_BYTES_PER_CLUSTER(fd->h), FAT32_CLUSTER(fd->h, fd->cluster) * 512LL) < FAT32_BYTES_PER_CLUSTER(fd->h))
+				return -1;
+			fd->h->cache_cluster = fd->cluster;
 		}
+		memcpy(buf, fd->h->cache_data + fd->pos % FAT32_BYTES_PER_CLUSTER(fd->h), cluslen);
+		
+		retlen += cluslen;
+		buf += cluslen;
+		fd->pos += cluslen;
+		len -= cluslen;
 		
 		if ((fd->pos % FAT32_BYTES_PER_CLUSTER(fd->h)) == 0)
 			fd->cluster = fat32_get_next_cluster(fd->h, fd->cluster);

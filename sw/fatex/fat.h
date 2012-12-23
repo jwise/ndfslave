@@ -23,6 +23,9 @@ struct fat32_handle {
 	unsigned int num_fats;
 	unsigned int root_cluster;
 	unsigned int sectors_per_fat;
+	
+	void *cache_data;
+	unsigned int cache_cluster;
 };
 
 struct fat32_bootsect {
