@@ -72,7 +72,6 @@ int main(int argc, char *argv[])
 	
 	struct fat32_handle h;
 	int p = fat32_find_partition(_io);
-	printf("partition at %d\n", p);
 	XFAIL(p == -1);
 	
 	XFAIL(fat32_open(&h, _io, p));
@@ -105,7 +104,7 @@ void recurs(struct fat32_handle *h, struct fat32_file *fd, char ***paths, int *n
 		if (de.attrib & FAT32_ATTRIB_DIRECTORY) {
 			fat32_open_by_de(h, &fd2, &de);
 			if (lvl+1 > *npaths) {
-				*paths = realloc(*paths, (*npaths+1) * 2);
+				*paths = realloc(*paths, (*npaths+1) * 2 * sizeof (char **));
 				*npaths = (*npaths+1) * 2;
 			}
 			(*paths)[lvl] = de.name;
